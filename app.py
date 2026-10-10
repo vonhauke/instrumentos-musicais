@@ -228,7 +228,7 @@ class InstrumentoDialog(tk.Toplevel):
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Meus Instrumentos Musicais")
+        self.title("my chaotic room")
         self.geometry("780x480")
         self.minsize(640, 400)
         self._aplicar_icone()
