@@ -275,7 +275,6 @@ class App(tk.Tk):
         self.label_preview = ttk.Label(
             preview_frame, text="",
             width=28, anchor="center", justify="center",
-            relief="groove", padding=10,
         )
         self.label_preview.pack()
 
