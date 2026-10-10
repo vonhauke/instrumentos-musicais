@@ -8,6 +8,10 @@ from datetime import datetime
 from tkinter import ttk, messagebox, filedialog
 from urllib.parse import quote_plus
 
+from PIL import Image, ImageTk
+
+TAMANHO_PREVIEW = (220, 220)
+
 PASTA_BASE = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(PASTA_BASE, "instrumentos.db")
 BACKUP_DIR = os.path.join(PASTA_BASE, "backups")
@@ -228,6 +232,9 @@ class App(tk.Tk):
         self.minsize(640, 400)
 
         self.con = conectar()
+        self.coluna_ordenacao = "tipo"
+        self.ordem_crescente = True
+        self._preview_img = None
 
         self._montar_interface()
         self._carregar_lista()
@@ -246,17 +253,32 @@ class App(tk.Tk):
         meio = ttk.Frame(self, padding=12)
         meio.pack(fill="both", expand=True)
 
+        lista_frame = ttk.Frame(meio)
+        lista_frame.pack(side="left", fill="both", expand=True)
+
         colunas = [c[0] for c in COLUNAS]
-        self.tree = ttk.Treeview(meio, columns=colunas, show="headings", selectmode="extended")
+        self.tree = ttk.Treeview(lista_frame, columns=colunas, show="headings", selectmode="extended")
         for chave, titulo, largura in COLUNAS:
-            self.tree.heading(chave, text=titulo)
+            self.tree.heading(chave, text=titulo, command=lambda c=chave: self._ordenar_por(c))
             self.tree.column(chave, width=largura, anchor="w")
         self.tree.pack(side="left", fill="both", expand=True)
         self.tree.bind("<Double-1>", lambda e: self._editar())
+        self.tree.bind("<<TreeviewSelect>>", lambda e: self._atualizar_preview())
 
-        scroll = ttk.Scrollbar(meio, orient="vertical", command=self.tree.yview)
+        scroll = ttk.Scrollbar(lista_frame, orient="vertical", command=self.tree.yview)
         scroll.pack(side="left", fill="y")
         self.tree.configure(yscrollcommand=scroll.set)
+
+        preview_frame = ttk.Frame(meio, padding=(12, 0, 0, 0))
+        preview_frame.pack(side="left", fill="y")
+        self.label_preview = ttk.Label(
+            preview_frame, text="Selecione um item\npara ver a foto",
+            width=28, anchor="center", justify="center",
+            relief="groove", padding=10,
+        )
+        self.label_preview.pack()
+
+        self._atualizar_cabecalhos()
 
         rodape = ttk.Frame(self, padding=(12, 0, 12, 12))
         rodape.pack(fill="x")
@@ -266,19 +288,39 @@ class App(tk.Tk):
         self.label_total = ttk.Label(rodape, text="")
         self.label_total.pack(side="right")
 
+    def _ordenar_por(self, coluna):
+        if coluna == self.coluna_ordenacao:
+            self.ordem_crescente = not self.ordem_crescente
+        else:
+            self.coluna_ordenacao = coluna
+            self.ordem_crescente = True
+        self._atualizar_cabecalhos()
+        self._carregar_lista()
+
+    def _atualizar_cabecalhos(self):
+        for chave, titulo, _ in COLUNAS:
+            texto = titulo
+            if chave == self.coluna_ordenacao:
+                texto += " ▲" if self.ordem_crescente else " ▼"
+            self.tree.heading(chave, text=texto)
+
     def _carregar_lista(self):
         termo = self.var_busca.get().strip().lower()
+        colunas_validas = {c[0] for c in COLUNAS}
+        coluna = self.coluna_ordenacao if self.coluna_ordenacao in colunas_validas else "tipo"
+        direcao = "ASC" if self.ordem_crescente else "DESC"
+
         cur = self.con.cursor()
         if termo:
             padrao = f"%{termo}%"
             cur.execute(
-                """SELECT id, tipo, marca, modelo, numero_serie FROM instrumentos
+                f"""SELECT id, tipo, marca, modelo, numero_serie FROM instrumentos
                    WHERE lower(tipo) LIKE ? OR lower(marca) LIKE ? OR lower(modelo) LIKE ?
-                   ORDER BY tipo""",
+                   ORDER BY {coluna} {direcao}""",
                 (padrao, padrao, padrao),
             )
         else:
-            cur.execute("SELECT id, tipo, marca, modelo, numero_serie FROM instrumentos ORDER BY tipo")
+            cur.execute(f"SELECT id, tipo, marca, modelo, numero_serie FROM instrumentos ORDER BY {coluna} {direcao}")
 
         self.tree.delete(*self.tree.get_children())
         linhas = cur.fetchall()
@@ -287,6 +329,7 @@ class App(tk.Tk):
             self.tree.insert("", "end", iid=str(id_), values=(tipo or "", marca or "", modelo or "", numero_serie or ""))
 
         self.label_total.config(text=f"{len(linhas)} instrumento(s)")
+        self._atualizar_preview()
 
     def _id_selecionado(self):
         sel = self.tree.selection()
@@ -369,6 +412,38 @@ class App(tk.Tk):
             self.con.executemany("DELETE FROM instrumentos WHERE id = ?", [(i,) for i in ids])
             self.con.commit()
             self._carregar_lista()
+
+    def _atualizar_preview(self):
+        ids = self._ids_selecionados()
+
+        if not ids:
+            self._mostrar_mensagem_preview("Selecione um item\npara ver a foto")
+            return
+        if len(ids) > 1:
+            self._mostrar_mensagem_preview(f"{len(ids)} itens selecionados")
+            return
+
+        dados = self._buscar_dados(ids[0])
+        caminho = dados.get("foto_path") if dados else None
+
+        if not caminho:
+            self._mostrar_mensagem_preview("Este item não tem\nfoto cadastrada")
+            return
+        if not os.path.isfile(caminho):
+            self._mostrar_mensagem_preview("Arquivo da foto\nnão encontrado")
+            return
+
+        try:
+            imagem = Image.open(caminho)
+            imagem.thumbnail(TAMANHO_PREVIEW)
+            self._preview_img = ImageTk.PhotoImage(imagem)
+            self.label_preview.configure(image=self._preview_img, text="")
+        except Exception:
+            self._mostrar_mensagem_preview("Não foi possível\nabrir essa imagem\n(formato não suportado)")
+
+    def _mostrar_mensagem_preview(self, texto):
+        self._preview_img = None
+        self.label_preview.configure(image="", text=texto)
 
     def _abrir_foto(self):
         id_ = self._id_selecionado()
