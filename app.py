@@ -86,6 +86,8 @@ class InstrumentoDialog(tk.Toplevel):
         var_tipo = tk.StringVar()
         combo_tipo = ttk.Combobox(frame, textvariable=var_tipo, values=TIPOS, width=32)
         combo_tipo.grid(row=linha, column=1, sticky="w", pady=4, padx=(10, 0))
+        combo_tipo.bind("<KeyRelease>", self._filtrar_tipos)
+        combo_tipo.bind("<<ComboboxSelected>>", lambda e: combo_tipo.configure(values=TIPOS))
         self.campos["tipo"] = var_tipo
         self._combo_tipo = combo_tipo
         linha += 1
@@ -121,6 +123,27 @@ class InstrumentoDialog(tk.Toplevel):
 
         self._combo_tipo.focus_set()
 
+    def _filtrar_tipos(self, event):
+        if event.keysym in ("Up", "Down", "Return", "Escape", "Tab", "ISO_Left_Tab"):
+            return
+        texto = self.campos["tipo"].get().strip().lower()
+        if not texto:
+            valores = TIPOS
+        else:
+            valores = [t for t in TIPOS if t.lower().startswith(texto)]
+            if not valores:
+                valores = [t for t in TIPOS if texto in t.lower()]
+        self._combo_tipo["values"] = valores
+        try:
+            if valores:
+                self._combo_tipo.tk.call("ttk::combobox::Post", self._combo_tipo)
+            else:
+                self._combo_tipo.tk.call("ttk::combobox::Unpost", self._combo_tipo)
+        except tk.TclError:
+            pass
+        self._combo_tipo.focus_set()
+        self._combo_tipo.icursor(tk.END)
+
     def _buscar_no_google(self):
         partes = [
             self.campos["marca"].get().strip(),
@@ -141,7 +164,10 @@ class InstrumentoDialog(tk.Toplevel):
     def _escolher_foto(self, var_foto):
         caminho = filedialog.askopenfilename(
             title="Escolher foto do instrumento",
-            filetypes=[("Imagens", "*.jpg *.jpeg *.png *.gif *.bmp"), ("Todos os arquivos", "*.*")],
+            filetypes=[
+                ("Imagens", "*.jpg *.jpeg *.png *.gif *.bmp *.webp *.tif *.tiff *.heic *.heif *.ico"),
+                ("Todos os arquivos", "*.*"),
+            ],
         )
         if caminho:
             var_foto.set(caminho)
