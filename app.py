@@ -16,6 +16,7 @@ PASTA_BASE = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(PASTA_BASE, "instrumentos.db")
 BACKUP_DIR = os.path.join(PASTA_BASE, "backups")
 MAX_BACKUPS = 20
+ICONE_PATH = os.path.join(PASTA_BASE, "assets_icone", "icone_app_instrumentos", "icone.ico")
 
 TIPOS = [
     "Amplificador", "Baixo", "Banjo", "Bateria", "Cabo", "Caixa de Som",
@@ -230,6 +231,7 @@ class App(tk.Tk):
         self.title("Meus Instrumentos Musicais")
         self.geometry("780x480")
         self.minsize(640, 400)
+        self._aplicar_icone()
 
         self.con = conectar()
         self.coluna_ordenacao = "tipo"
@@ -238,6 +240,13 @@ class App(tk.Tk):
 
         self._montar_interface()
         self._carregar_lista()
+
+    def _aplicar_icone(self):
+        if os.path.isfile(ICONE_PATH):
+            try:
+                self.iconbitmap(ICONE_PATH)
+            except tk.TclError:
+                pass
 
     def _montar_interface(self):
         topo = ttk.Frame(self, padding=(12, 12, 12, 0))
