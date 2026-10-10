@@ -222,7 +222,7 @@ class App(tk.Tk):
         meio.pack(fill="both", expand=True)
 
         colunas = [c[0] for c in COLUNAS]
-        self.tree = ttk.Treeview(meio, columns=colunas, show="headings", selectmode="browse")
+        self.tree = ttk.Treeview(meio, columns=colunas, show="headings", selectmode="extended")
         for chave, titulo, largura in COLUNAS:
             self.tree.heading(chave, text=titulo)
             self.tree.column(chave, width=largura, anchor="w")
@@ -267,7 +267,16 @@ class App(tk.Tk):
         sel = self.tree.selection()
         if not sel:
             return None
+        if len(sel) > 1:
+            messagebox.showinfo(
+                "Selecione apenas um item",
+                "Essa ação funciona com um item por vez. Selecione apenas um instrumento na lista.",
+            )
+            return None
         return int(sel[0])
+
+    def _ids_selecionados(self):
+        return [int(i) for i in self.tree.selection()]
 
     def _buscar_dados(self, id_):
         cur = self.con.cursor()
@@ -314,14 +323,24 @@ class App(tk.Tk):
             self._carregar_lista()
 
     def _excluir(self):
-        id_ = self._id_selecionado()
-        if id_ is None:
-            messagebox.showinfo("Nenhum instrumento selecionado", "Selecione um instrumento na lista primeiro.")
+        ids = self._ids_selecionados()
+        if not ids:
+            messagebox.showinfo("Nenhum instrumento selecionado", "Selecione um ou mais instrumentos na lista primeiro.")
             return
-        dados = self._buscar_dados(id_)
-        rotulo = dados["tipo"] + (f" - {dados['marca']}" if dados.get("marca") else "")
-        if messagebox.askyesno("Confirmar exclusão", f"Excluir \"{rotulo}\" do cadastro?"):
-            self.con.execute("DELETE FROM instrumentos WHERE id = ?", (id_,))
+
+        if len(ids) == 1:
+            dados = self._buscar_dados(ids[0])
+            rotulo = dados["tipo"] + (f" - {dados['marca']}" if dados.get("marca") else "")
+            pergunta = f"Excluir \"{rotulo}\" do cadastro?"
+        else:
+            rotulos = []
+            for id_ in ids:
+                dados = self._buscar_dados(id_)
+                rotulos.append(dados["tipo"] + (f" - {dados['marca']}" if dados.get("marca") else ""))
+            pergunta = f"Excluir {len(ids)} itens do cadastro?\n\n" + "\n".join(rotulos)
+
+        if messagebox.askyesno("Confirmar exclusão", pergunta):
+            self.con.executemany("DELETE FROM instrumentos WHERE id = ?", [(i,) for i in ids])
             self.con.commit()
             self._carregar_lista()
 
