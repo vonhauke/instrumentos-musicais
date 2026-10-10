@@ -264,6 +264,7 @@ class App(tk.Tk):
         self.tree.pack(side="left", fill="both", expand=True)
         self.tree.bind("<Double-1>", lambda e: self._editar())
         self.tree.bind("<<TreeviewSelect>>", lambda e: self._atualizar_preview())
+        self.tree.bind("<Button-1>", self._clique_na_lista)
 
         scroll = ttk.Scrollbar(lista_frame, orient="vertical", command=self.tree.yview)
         scroll.pack(side="left", fill="y")
@@ -330,6 +331,10 @@ class App(tk.Tk):
 
         self.label_total.config(text=f"{len(linhas)} instrumento(s)")
         self._atualizar_preview()
+
+    def _clique_na_lista(self, event):
+        if not self.tree.identify_row(event.y):
+            self.tree.selection_set([])
 
     def _id_selecionado(self):
         sel = self.tree.selection()
