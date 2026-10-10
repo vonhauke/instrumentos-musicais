@@ -273,7 +273,7 @@ class App(tk.Tk):
         preview_frame = ttk.Frame(meio, padding=(12, 0, 0, 0))
         preview_frame.pack(side="left", fill="y")
         self.label_preview = ttk.Label(
-            preview_frame, text="Selecione um item\npara ver a foto",
+            preview_frame, text="",
             width=28, anchor="center", justify="center",
             relief="groove", padding=10,
         )
@@ -420,35 +420,27 @@ class App(tk.Tk):
 
     def _atualizar_preview(self):
         ids = self._ids_selecionados()
+        caminho = None
 
-        if not ids:
-            self._mostrar_mensagem_preview("Selecione um item\npara ver a foto")
-            return
-        if len(ids) > 1:
-            self._mostrar_mensagem_preview(f"{len(ids)} itens selecionados")
-            return
+        if len(ids) == 1:
+            dados = self._buscar_dados(ids[0])
+            caminho = dados.get("foto_path") if dados else None
 
-        dados = self._buscar_dados(ids[0])
-        caminho = dados.get("foto_path") if dados else None
+        if caminho and os.path.isfile(caminho):
+            try:
+                imagem = Image.open(caminho)
+                imagem.thumbnail(TAMANHO_PREVIEW)
+                self._preview_img = ImageTk.PhotoImage(imagem)
+                self.label_preview.configure(image=self._preview_img)
+                return
+            except Exception:
+                pass
 
-        if not caminho:
-            self._mostrar_mensagem_preview("Este item não tem\nfoto cadastrada")
-            return
-        if not os.path.isfile(caminho):
-            self._mostrar_mensagem_preview("Arquivo da foto\nnão encontrado")
-            return
+        self._limpar_preview()
 
-        try:
-            imagem = Image.open(caminho)
-            imagem.thumbnail(TAMANHO_PREVIEW)
-            self._preview_img = ImageTk.PhotoImage(imagem)
-            self.label_preview.configure(image=self._preview_img, text="")
-        except Exception:
-            self._mostrar_mensagem_preview("Não foi possível\nabrir essa imagem\n(formato não suportado)")
-
-    def _mostrar_mensagem_preview(self, texto):
+    def _limpar_preview(self):
         self._preview_img = None
-        self.label_preview.configure(image="", text=texto)
+        self.label_preview.configure(image="")
 
     def _abrir_foto(self):
         id_ = self._id_selecionado()
