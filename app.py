@@ -38,7 +38,7 @@ COLUNAS = [
     ("numero_serie", "Nº de série", 140),
 ]
 
-FONTE = "Segoe UI"
+FONTE = "Aktiv Grotesk"
 
 # paleta extraída de maquete_tela_principal.html
 COR_FUNDO = "#14171c"
@@ -293,7 +293,7 @@ class App(ctk.CTk):
         textos = ctk.CTkFrame(cabecalho, fg_color="transparent")
         textos.pack(side="left")
         ctk.CTkLabel(
-            textos, text="Meus instrumentos", text_color=COR_TEXTO,
+            textos, text="my chaotic room", text_color=COR_TEXTO,
             font=(FONTE, 20, "bold"), anchor="w",
         ).pack(anchor="w")
         self.label_subtitulo = ctk.CTkLabel(
@@ -350,12 +350,13 @@ class App(ctk.CTk):
         self.tree.bind("<<TreeviewSelect>>", lambda e: self._atualizar_detalhes())
         self.tree.bind("<Button-1>", self._clique_na_lista)
 
-        scroll = ttk.Scrollbar(
+        self.scroll = ttk.Scrollbar(
             lista_frame, orient="vertical", command=self.tree.yview,
             style="Instrumentos.Vertical.TScrollbar",
         )
-        scroll.pack(side="left", fill="y")
-        self.tree.configure(yscrollcommand=scroll.set)
+        # a barra só é exibida (pack) quando o conteúdo realmente não cabe na área visível
+        self.tree.configure(yscrollcommand=self._atualizar_barra_rolagem)
+        lista_frame.bind("<Configure>", lambda e: self._reavaliar_barra_rolagem())
 
         self._atualizar_cabecalhos()
 
@@ -375,8 +376,11 @@ class App(ctk.CTk):
         conteudo_detalhe = ctk.CTkFrame(painel_detalhe, fg_color="transparent")
         conteudo_detalhe.pack(fill="both", expand=True, padx=18, pady=18)
 
+        # bloco inteiro (foto + textos) só aparece com exatamente 1 item selecionado
+        self.bloco_detalhe = ctk.CTkFrame(conteudo_detalhe, fg_color="transparent")
+
         self.foto_detalhe_frame = ctk.CTkFrame(
-            conteudo_detalhe, fg_color=COR_GHOST, corner_radius=10, height=150,
+            self.bloco_detalhe, fg_color=COR_GHOST, corner_radius=10, height=150,
         )
         self.foto_detalhe_frame.pack(fill="x")
         self.foto_detalhe_frame.pack_propagate(False)
@@ -385,17 +389,17 @@ class App(ctk.CTk):
         self.label_foto_detalhe.bind("<Button-1>", self._abrir_foto_detalhe)
 
         self.label_tipo_detalhe = ctk.CTkLabel(
-            conteudo_detalhe, text="", text_color=COR_OURO,
+            self.bloco_detalhe, text="", text_color=COR_OURO,
             font=(FONTE, 12, "bold"), anchor="w",
         )
         self.label_tipo_detalhe.pack(fill="x", pady=(14, 0))
         self.label_nome_detalhe = ctk.CTkLabel(
-            conteudo_detalhe, text="", text_color=COR_TEXTO,
+            self.bloco_detalhe, text="", text_color=COR_TEXTO,
             font=(FONTE, 18, "bold"), anchor="w", justify="left", wraplength=230,
         )
         self.label_nome_detalhe.pack(fill="x")
 
-        grade = ctk.CTkFrame(conteudo_detalhe, fg_color="transparent")
+        grade = ctk.CTkFrame(self.bloco_detalhe, fg_color="transparent")
         grade.pack(fill="x", pady=(14, 0))
         grade.columnconfigure(1, weight=1)
         self._labels_detalhe = {}
@@ -510,6 +514,16 @@ class App(ctk.CTk):
         self.label_total.configure(text=f"{len(linhas)} de {total_geral} instrumentos")
         self._atualizar_detalhes()
 
+    def _atualizar_barra_rolagem(self, primeiro, ultimo):
+        self.scroll.set(primeiro, ultimo)
+        if float(primeiro) <= 0.0 and float(ultimo) >= 1.0:
+            self.scroll.pack_forget()
+        elif not self.scroll.winfo_ismapped():
+            self.scroll.pack(side="left", fill="y")
+
+    def _reavaliar_barra_rolagem(self):
+        self._atualizar_barra_rolagem(*self.tree.yview())
+
     def _clique_na_lista(self, event):
         if not self.tree.identify_row(event.y):
             self.tree.selection_set([])
@@ -599,19 +613,10 @@ class App(ctk.CTk):
     def _atualizar_detalhes(self):
         ids = self._ids_selecionados()
 
-        if not ids:
-            self._preencher_detalhes(tipo="", nome="", marca="", modelo="", numero_serie="", caminho_foto=None)
+        if len(ids) != 1:
+            self.bloco_detalhe.pack_forget()
             self.botao_editar_detalhe.configure(state="disabled")
-            self.botao_excluir_detalhe.configure(state="disabled")
-            return
-
-        if len(ids) > 1:
-            self._preencher_detalhes(
-                tipo="", nome=f"{len(ids)} itens selecionados",
-                marca="", modelo="", numero_serie="", caminho_foto=None,
-            )
-            self.botao_editar_detalhe.configure(state="disabled")
-            self.botao_excluir_detalhe.configure(state="normal")
+            self.botao_excluir_detalhe.configure(state="normal" if ids else "disabled")
             return
 
         dados = self._buscar_dados(ids[0]) or {}
@@ -621,6 +626,7 @@ class App(ctk.CTk):
             marca=dados.get("marca") or "", modelo=dados.get("modelo") or "",
             numero_serie=dados.get("numero_serie") or "", caminho_foto=dados.get("foto_path"),
         )
+        self.bloco_detalhe.pack(fill="x")
         self.botao_editar_detalhe.configure(state="normal")
         self.botao_excluir_detalhe.configure(state="normal")
 
