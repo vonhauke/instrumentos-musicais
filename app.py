@@ -466,5 +466,15 @@ class App(tk.Tk):
         os.startfile(caminho)
 
 
+def _identificar_processo_windows():
+    """No Windows, dissocia o app do ícone genérico do pythonw.exe na barra de tarefas."""
+    try:
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("instrumentosmusicais.app")
+    except Exception:
+        pass
+
+
 if __name__ == "__main__":
+    _identificar_processo_windows()
     App().mainloop()

@@ -3,3 +3,4 @@ __pycache__/
 instrumentos.db
 instrumentos_backup*.db
 backups/
+*.lnk
