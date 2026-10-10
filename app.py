@@ -1,7 +1,9 @@
 import os
 import sqlite3
 import tkinter as tk
+import webbrowser
 from tkinter import ttk, messagebox, filedialog
+from urllib.parse import quote_plus
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "instrumentos.db")
 
@@ -12,14 +14,12 @@ TIPOS = [
     "Saxofone", "Sintetizador", "Teclado/Piano", "Trompete", "Ukulele",
     "Viola", "Violão", "Violino", "Outro",
 ]
-CONDICOES = ["Novo", "Usado - bom estado", "Usado - precisa de reparo", "Em restauração"]
 
 COLUNAS = [
-    ("tipo", "Tipo", 140),
-    ("marca", "Marca", 110),
-    ("modelo", "Modelo", 110),
-    ("numero_serie", "Nº Série", 110),
-    ("valor", "Valor", 90),
+    ("tipo", "Tipo", 160),
+    ("marca", "Marca", 140),
+    ("modelo", "Modelo", 140),
+    ("numero_serie", "Nº Série", 140),
 ]
 
 
@@ -32,25 +32,12 @@ def conectar():
             marca TEXT,
             modelo TEXT,
             numero_serie TEXT,
-            data_aquisicao TEXT,
-            valor REAL,
-            condicao TEXT,
-            local TEXT,
             foto_path TEXT,
             observacoes TEXT
         )
     """)
     con.commit()
     return con
-
-
-def formatar_valor(valor):
-    if valor is None:
-        return ""
-    try:
-        return f"R$ {float(valor):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-    except (ValueError, TypeError):
-        return ""
 
 
 class InstrumentoDialog(tk.Toplevel):
@@ -106,17 +93,11 @@ class InstrumentoDialog(tk.Toplevel):
         add_entry("Marca", "marca")
         add_entry("Modelo", "modelo")
         add_entry("Número de série", "numero_serie")
-        add_entry("Data de aquisição (dd/mm/aaaa)", "data_aquisicao")
-        add_entry("Valor (R$)", "valor")
 
-        ttk.Label(frame, text="Condição").grid(row=linha, column=0, sticky="w", pady=4)
-        var_cond = tk.StringVar()
-        combo_cond = ttk.Combobox(frame, textvariable=var_cond, values=CONDICOES, width=32)
-        combo_cond.grid(row=linha, column=1, sticky="w", pady=4, padx=(10, 0))
-        self.campos["condicao"] = var_cond
+        ttk.Button(frame, text="Buscar no Google", command=self._buscar_no_google).grid(
+            row=linha, column=1, sticky="w", pady=(0, 8), padx=(10, 0)
+        )
         linha += 1
-
-        add_entry("Local (onde está guardado)", "local")
 
         ttk.Label(frame, text="Foto (arquivo)").grid(row=linha, column=0, sticky="w", pady=4)
         foto_frame = ttk.Frame(frame)
@@ -140,6 +121,23 @@ class InstrumentoDialog(tk.Toplevel):
 
         self._combo_tipo.focus_set()
 
+    def _buscar_no_google(self):
+        partes = [
+            self.campos["marca"].get().strip(),
+            self.campos["modelo"].get().strip(),
+            self.campos["tipo"].get().strip(),
+        ]
+        termo = " ".join(p for p in partes if p)
+        if not termo:
+            messagebox.showinfo(
+                "Preencha os dados primeiro",
+                "Informe ao menos a marca ou o modelo para buscar.",
+                parent=self,
+            )
+            return
+        url = f"https://www.google.com/search?q={quote_plus(termo + ' especificações')}"
+        webbrowser.open(url)
+
     def _escolher_foto(self, var_foto):
         caminho = filedialog.askopenfilename(
             title="Escolher foto do instrumento",
@@ -150,10 +148,7 @@ class InstrumentoDialog(tk.Toplevel):
 
     def _preencher(self, dados):
         for chave, var in self.campos.items():
-            if chave == "valor" and dados.get("valor") is not None:
-                var.set(str(dados["valor"]))
-            else:
-                var.set(dados.get(chave) or "")
+            var.set(dados.get(chave) or "")
         self.campo_observacoes.insert("1.0", dados.get("observacoes") or "")
 
     def _salvar(self):
@@ -163,24 +158,11 @@ class InstrumentoDialog(tk.Toplevel):
             self._combo_tipo.focus_set()
             return
 
-        valor_texto = self.campos["valor"].get().strip().replace(",", ".")
-        valor = None
-        if valor_texto:
-            try:
-                valor = float(valor_texto)
-            except ValueError:
-                messagebox.showwarning("Valor inválido", "Informe um valor numérico (ex: 1500 ou 1500.50).", parent=self)
-                return
-
         self.resultado = {
             "tipo": tipo,
             "marca": self.campos["marca"].get().strip(),
             "modelo": self.campos["modelo"].get().strip(),
             "numero_serie": self.campos["numero_serie"].get().strip(),
-            "data_aquisicao": self.campos["data_aquisicao"].get().strip(),
-            "valor": valor,
-            "condicao": self.campos["condicao"].get().strip(),
-            "local": self.campos["local"].get().strip(),
             "foto_path": self.campos["foto_path"].get().strip(),
             "observacoes": self.campo_observacoes.get("1.0", "end").strip(),
         }
@@ -239,19 +221,19 @@ class App(tk.Tk):
         if termo:
             padrao = f"%{termo}%"
             cur.execute(
-                """SELECT id, tipo, marca, modelo, numero_serie, valor FROM instrumentos
+                """SELECT id, tipo, marca, modelo, numero_serie FROM instrumentos
                    WHERE lower(tipo) LIKE ? OR lower(marca) LIKE ? OR lower(modelo) LIKE ?
                    ORDER BY tipo""",
                 (padrao, padrao, padrao),
             )
         else:
-            cur.execute("SELECT id, tipo, marca, modelo, numero_serie, valor FROM instrumentos ORDER BY tipo")
+            cur.execute("SELECT id, tipo, marca, modelo, numero_serie FROM instrumentos ORDER BY tipo")
 
         self.tree.delete(*self.tree.get_children())
         linhas = cur.fetchall()
         for linha in linhas:
-            id_, tipo, marca, modelo, numero_serie, valor = linha
-            self.tree.insert("", "end", iid=str(id_), values=(tipo or "", marca or "", modelo or "", numero_serie or "", formatar_valor(valor)))
+            id_, tipo, marca, modelo, numero_serie = linha
+            self.tree.insert("", "end", iid=str(id_), values=(tipo or "", marca or "", modelo or "", numero_serie or ""))
 
         self.label_total.config(text=f"{len(linhas)} instrumento(s)")
 
@@ -277,10 +259,9 @@ class App(tk.Tk):
             dados = dialog.resultado
             self.con.execute(
                 """INSERT INTO instrumentos
-                   (tipo, marca, modelo, numero_serie, data_aquisicao, valor, condicao, local, foto_path, observacoes)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   (tipo, marca, modelo, numero_serie, foto_path, observacoes)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
                 (dados["tipo"], dados["marca"], dados["modelo"], dados["numero_serie"],
-                 dados["data_aquisicao"], dados["valor"], dados["condicao"], dados["local"],
                  dados["foto_path"], dados["observacoes"]),
             )
             self.con.commit()
@@ -298,10 +279,9 @@ class App(tk.Tk):
             novos = dialog.resultado
             self.con.execute(
                 """UPDATE instrumentos SET tipo=?, marca=?, modelo=?, numero_serie=?,
-                   data_aquisicao=?, valor=?, condicao=?, local=?, foto_path=?, observacoes=?
+                   foto_path=?, observacoes=?
                    WHERE id=?""",
                 (novos["tipo"], novos["marca"], novos["modelo"], novos["numero_serie"],
-                 novos["data_aquisicao"], novos["valor"], novos["condicao"], novos["local"],
                  novos["foto_path"], novos["observacoes"], id_),
             )
             self.con.commit()
