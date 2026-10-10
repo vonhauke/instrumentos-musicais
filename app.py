@@ -8,15 +8,20 @@ from datetime import datetime
 from tkinter import ttk, messagebox, filedialog
 from urllib.parse import quote_plus
 
-from PIL import Image, ImageTk
+import customtkinter as ctk
+from PIL import Image
 
-TAMANHO_PREVIEW = (220, 220)
+ctk.set_appearance_mode("dark")
+ctk.set_default_color_theme("dark-blue")
+
+TAMANHO_FOTO_DETALHE = (234, 150)
 
 PASTA_BASE = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(PASTA_BASE, "instrumentos.db")
 BACKUP_DIR = os.path.join(PASTA_BASE, "backups")
 MAX_BACKUPS = 20
 ICONE_PATH = os.path.join(PASTA_BASE, "assets_icone", "icone_app_instrumentos", "icone.ico")
+ICONE_PNG_PATH = os.path.join(PASTA_BASE, "assets_icone", "icone_app_instrumentos", "icone_1024.png")
 
 TIPOS = [
     "Amplificador", "Baixo", "Banjo", "Bateria", "Cabo", "Caixa de Som",
@@ -30,8 +35,29 @@ COLUNAS = [
     ("tipo", "Tipo", 160),
     ("marca", "Marca", 140),
     ("modelo", "Modelo", 140),
-    ("numero_serie", "Nº Série", 140),
+    ("numero_serie", "Nº de série", 140),
 ]
+
+FONTE = "Segoe UI"
+
+# paleta extraída de maquete_tela_principal.html
+COR_FUNDO = "#14171c"
+COR_PAINEL = "#1c2027"
+COR_BORDA = "#2c323c"
+COR_BORDA_SUAVE = "#22272f"
+COR_TEXTO = "#ece6d8"
+COR_TEXTO_FRACO = "#8b919b"
+COR_TEXTO_FRACO2 = "#6c727c"
+COR_OURO = "#d4a24c"
+COR_OURO_HOVER = "#c6953f"
+COR_OURO_TEXTO = "#1a1408"
+COR_GHOST = "#232831"
+COR_GHOST_HOVER = "#2b313c"
+COR_PERIGO_TEXTO = "#e07a6a"
+COR_PERIGO_BORDA = "#4a2e2b"
+COR_PERIGO_HOVER = "#2a1f1d"
+COR_SELECIONADO = "#262b34"
+COR_MONO = "#b8b2a5"
 
 
 def fazer_backup(motivo="auto"):
@@ -225,18 +251,22 @@ class InstrumentoDialog(tk.Toplevel):
         self.destroy()
 
 
-class App(tk.Tk):
+class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("my chaotic room")
-        self.geometry("780x480")
-        self.minsize(640, 400)
+        self.configure(fg_color=COR_FUNDO)
+        self.geometry("1000x640")
+        self.minsize(860, 480)
         self._aplicar_icone()
 
         self.con = conectar()
         self.coluna_ordenacao = "tipo"
         self.ordem_crescente = True
-        self._preview_img = None
+        imagem_vazia = Image.new("RGBA", (1, 1), (0, 0, 0, 0))
+        self._imagem_vazia = ctk.CTkImage(light_image=imagem_vazia, dark_image=imagem_vazia, size=(1, 1))
+        self._foto_detalhe_img = self._imagem_vazia
+        self._foto_detalhe_caminho = None
 
         self._montar_interface()
         self._carregar_lista()
@@ -249,53 +279,190 @@ class App(tk.Tk):
                 pass
 
     def _montar_interface(self):
-        topo = ttk.Frame(self, padding=(12, 12, 12, 0))
-        topo.pack(fill="x")
+        self._configurar_estilo_treeview()
 
-        ttk.Label(topo, text="Buscar:").pack(side="left")
-        self.var_busca = tk.StringVar()
-        self.var_busca.trace_add("write", lambda *a: self._carregar_lista())
-        ttk.Entry(topo, textvariable=self.var_busca, width=30).pack(side="left", padx=(5, 0))
+        # ---- cabeçalho ----
+        cabecalho = ctk.CTkFrame(self, fg_color="transparent")
+        cabecalho.pack(fill="x", padx=28, pady=(22, 18))
 
-        ttk.Button(topo, text="Novo instrumento", command=self._novo).pack(side="right")
+        if os.path.isfile(ICONE_PNG_PATH):
+            img = Image.open(ICONE_PNG_PATH)
+            icone_ctk = ctk.CTkImage(light_image=img, dark_image=img, size=(30, 30))
+            ctk.CTkLabel(cabecalho, text="", image=icone_ctk).pack(side="left", padx=(0, 14))
 
-        meio = ttk.Frame(self, padding=12)
-        meio.pack(fill="both", expand=True)
+        textos = ctk.CTkFrame(cabecalho, fg_color="transparent")
+        textos.pack(side="left")
+        ctk.CTkLabel(
+            textos, text="Meus instrumentos", text_color=COR_TEXTO,
+            font=(FONTE, 20, "bold"), anchor="w",
+        ).pack(anchor="w")
+        self.label_subtitulo = ctk.CTkLabel(
+            textos, text="", text_color=COR_TEXTO_FRACO,
+            font=(FONTE, 13), anchor="w",
+        )
+        self.label_subtitulo.pack(anchor="w")
 
-        lista_frame = ttk.Frame(meio)
-        lista_frame.pack(side="left", fill="both", expand=True)
+        ctk.CTkButton(
+            cabecalho, text="＋ Novo instrumento", command=self._novo,
+            fg_color=COR_OURO, hover_color=COR_OURO_HOVER, text_color=COR_OURO_TEXTO,
+            font=(FONTE, 14, "bold"), corner_radius=10, height=38,
+        ).pack(side="right")
+
+        busca_caixa = ctk.CTkFrame(
+            cabecalho, fg_color=COR_PAINEL, border_color=COR_BORDA, border_width=1,
+            corner_radius=10, height=38, width=280,
+        )
+        busca_caixa.pack(side="right", padx=(0, 12))
+        busca_caixa.pack_propagate(False)
+        ctk.CTkLabel(
+            busca_caixa, text="🔍", text_color=COR_TEXTO_FRACO2, font=(FONTE, 13),
+        ).pack(side="left", padx=(12, 4))
+        self.entrada_busca = ctk.CTkEntry(
+            busca_caixa,
+            placeholder_text="Buscar por tipo, marca, modelo…",
+            fg_color="transparent", border_width=0,
+            text_color=COR_TEXTO, placeholder_text_color=COR_TEXTO_FRACO2,
+            font=(FONTE, 13),
+        )
+        self.entrada_busca.pack(side="left", fill="both", expand=True, padx=(0, 12))
+        self.entrada_busca.bind("<KeyRelease>", lambda e: self._carregar_lista())
+
+        # ---- corpo: tabela + painel de detalhes ----
+        corpo = ctk.CTkFrame(self, fg_color="transparent")
+        corpo.pack(fill="both", expand=True, padx=28, pady=(0, 22))
+
+        painel_tabela = ctk.CTkFrame(corpo, fg_color=COR_PAINEL, corner_radius=14)
+        painel_tabela.pack(side="left", fill="both", expand=True, padx=(0, 18))
+
+        lista_frame = ctk.CTkFrame(painel_tabela, fg_color=COR_PAINEL)
+        lista_frame.pack(fill="both", expand=True, padx=1, pady=(1, 0))
 
         colunas = [c[0] for c in COLUNAS]
-        self.tree = ttk.Treeview(lista_frame, columns=colunas, show="headings", selectmode="extended")
+        self.tree = ttk.Treeview(
+            lista_frame, columns=colunas, show="headings",
+            selectmode="extended", style="Instrumentos.Treeview",
+        )
         for chave, titulo, largura in COLUNAS:
             self.tree.heading(chave, text=titulo, command=lambda c=chave: self._ordenar_por(c))
             self.tree.column(chave, width=largura, anchor="w")
         self.tree.pack(side="left", fill="both", expand=True)
         self.tree.bind("<Double-1>", lambda e: self._editar())
-        self.tree.bind("<<TreeviewSelect>>", lambda e: self._atualizar_preview())
+        self.tree.bind("<<TreeviewSelect>>", lambda e: self._atualizar_detalhes())
         self.tree.bind("<Button-1>", self._clique_na_lista)
 
-        scroll = ttk.Scrollbar(lista_frame, orient="vertical", command=self.tree.yview)
+        scroll = ttk.Scrollbar(
+            lista_frame, orient="vertical", command=self.tree.yview,
+            style="Instrumentos.Vertical.TScrollbar",
+        )
         scroll.pack(side="left", fill="y")
         self.tree.configure(yscrollcommand=scroll.set)
 
-        preview_frame = ttk.Frame(meio, padding=(12, 0, 0, 0))
-        preview_frame.pack(side="left", fill="y")
-        self.label_preview = ttk.Label(
-            preview_frame, text="",
-            width=28, anchor="center", justify="center",
-        )
-        self.label_preview.pack()
-
         self._atualizar_cabecalhos()
 
-        rodape = ttk.Frame(self, padding=(12, 0, 12, 12))
-        rodape.pack(fill="x")
-        ttk.Button(rodape, text="Editar", command=self._editar).pack(side="left")
-        ttk.Button(rodape, text="Excluir", command=self._excluir).pack(side="left", padx=(8, 0))
-        ttk.Button(rodape, text="Abrir foto", command=self._abrir_foto).pack(side="left", padx=(8, 0))
-        self.label_total = ttk.Label(rodape, text="")
-        self.label_total.pack(side="right")
+        linha_rodape = ctk.CTkFrame(painel_tabela, fg_color=COR_BORDA_SUAVE, height=1)
+        linha_rodape.pack(fill="x", side="top")
+        self.label_total = ctk.CTkLabel(
+            painel_tabela, text="", text_color=COR_TEXTO_FRACO2,
+            font=(FONTE, 12), anchor="w",
+        )
+        self.label_total.pack(fill="x", padx=18, pady=12, anchor="w")
+
+        # ---- painel de detalhes ----
+        painel_detalhe = ctk.CTkFrame(corpo, fg_color=COR_PAINEL, corner_radius=14, width=270)
+        painel_detalhe.pack(side="left", fill="y")
+        painel_detalhe.pack_propagate(False)
+
+        conteudo_detalhe = ctk.CTkFrame(painel_detalhe, fg_color="transparent")
+        conteudo_detalhe.pack(fill="both", expand=True, padx=18, pady=18)
+
+        self.foto_detalhe_frame = ctk.CTkFrame(
+            conteudo_detalhe, fg_color=COR_GHOST, corner_radius=10, height=150,
+        )
+        self.foto_detalhe_frame.pack(fill="x")
+        self.foto_detalhe_frame.pack_propagate(False)
+        self.label_foto_detalhe = ctk.CTkLabel(self.foto_detalhe_frame, text="", image=self._imagem_vazia)
+        self.label_foto_detalhe.pack(expand=True)
+        self.label_foto_detalhe.bind("<Button-1>", self._abrir_foto_detalhe)
+
+        self.label_tipo_detalhe = ctk.CTkLabel(
+            conteudo_detalhe, text="", text_color=COR_OURO,
+            font=(FONTE, 12, "bold"), anchor="w",
+        )
+        self.label_tipo_detalhe.pack(fill="x", pady=(14, 0))
+        self.label_nome_detalhe = ctk.CTkLabel(
+            conteudo_detalhe, text="", text_color=COR_TEXTO,
+            font=(FONTE, 18, "bold"), anchor="w", justify="left", wraplength=230,
+        )
+        self.label_nome_detalhe.pack(fill="x")
+
+        grade = ctk.CTkFrame(conteudo_detalhe, fg_color="transparent")
+        grade.pack(fill="x", pady=(14, 0))
+        grade.columnconfigure(1, weight=1)
+        self._labels_detalhe = {}
+        for i, (rotulo, chave) in enumerate([("Marca", "marca"), ("Modelo", "modelo"), ("Nº de série", "numero_serie")]):
+            ctk.CTkLabel(
+                grade, text=rotulo, text_color=COR_TEXTO_FRACO,
+                font=(FONTE, 13), anchor="w",
+            ).grid(row=i, column=0, sticky="w", pady=3)
+            fonte_valor = ("Consolas", 13) if chave == "numero_serie" else (FONTE, 13)
+            cor_valor = COR_MONO if chave == "numero_serie" else COR_TEXTO
+            valor = ctk.CTkLabel(
+                grade, text="", text_color=cor_valor,
+                font=fonte_valor, anchor="e", justify="right",
+            )
+            valor.grid(row=i, column=1, sticky="e", pady=3)
+            self._labels_detalhe[chave] = valor
+
+        acoes = ctk.CTkFrame(conteudo_detalhe, fg_color="transparent")
+        acoes.pack(fill="x", side="bottom", pady=(14, 0))
+        self.botao_editar_detalhe = ctk.CTkButton(
+            acoes, text="Editar", command=self._editar,
+            fg_color=COR_GHOST, hover_color=COR_GHOST_HOVER, text_color=COR_TEXTO,
+            corner_radius=10, height=36, font=(FONTE, 13),
+        )
+        self.botao_editar_detalhe.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        self.botao_excluir_detalhe = ctk.CTkButton(
+            acoes, text="Excluir", command=self._excluir,
+            fg_color="transparent", hover_color=COR_PERIGO_HOVER, text_color=COR_PERIGO_TEXTO,
+            border_color=COR_PERIGO_BORDA, border_width=1,
+            corner_radius=10, height=36, font=(FONTE, 13),
+        )
+        self.botao_excluir_detalhe.pack(side="left", fill="x", expand=True)
+
+        self._atualizar_detalhes()
+
+    def _configurar_estilo_treeview(self):
+        estilo = ttk.Style(self)
+        estilo.theme_use("clam")
+
+        estilo.configure(
+            "Instrumentos.Treeview",
+            background=COR_PAINEL, fieldbackground=COR_PAINEL, foreground=COR_TEXTO,
+            rowheight=52, borderwidth=0, relief="flat", font=(FONTE, 12),
+            bordercolor=COR_PAINEL, lightcolor=COR_PAINEL, darkcolor=COR_PAINEL,
+        )
+        estilo.configure(
+            "Instrumentos.Treeview.Heading",
+            background=COR_PAINEL, foreground=COR_TEXTO_FRACO,
+            font=(FONTE, 11, "bold"), borderwidth=0, relief="flat",
+            bordercolor=COR_PAINEL, lightcolor=COR_PAINEL, darkcolor=COR_PAINEL,
+        )
+        estilo.map(
+            "Instrumentos.Treeview.Heading",
+            background=[("active", COR_PAINEL), ("pressed", COR_PAINEL)],
+            foreground=[("active", COR_TEXTO_FRACO)],
+        )
+        estilo.map(
+            "Instrumentos.Treeview",
+            background=[("selected", COR_SELECIONADO)],
+            foreground=[("selected", COR_TEXTO)],
+        )
+
+        estilo.configure(
+            "Instrumentos.Vertical.TScrollbar",
+            background=COR_PAINEL, troughcolor=COR_PAINEL, bordercolor=COR_PAINEL,
+            arrowcolor=COR_TEXTO_FRACO2, relief="flat", width=12,
+        )
 
     def _ordenar_por(self, coluna):
         if coluna == self.coluna_ordenacao:
@@ -308,18 +475,20 @@ class App(tk.Tk):
 
     def _atualizar_cabecalhos(self):
         for chave, titulo, _ in COLUNAS:
-            texto = titulo
+            texto = titulo.upper()
             if chave == self.coluna_ordenacao:
                 texto += " ▲" if self.ordem_crescente else " ▼"
-            self.tree.heading(chave, text=texto)
+            self.tree.heading(chave, text=texto, anchor="w")
 
     def _carregar_lista(self):
-        termo = self.var_busca.get().strip().lower()
+        termo = self.entrada_busca.get().strip().lower()
         colunas_validas = {c[0] for c in COLUNAS}
         coluna = self.coluna_ordenacao if self.coluna_ordenacao in colunas_validas else "tipo"
         direcao = "ASC" if self.ordem_crescente else "DESC"
 
         cur = self.con.cursor()
+        total_geral = cur.execute("SELECT COUNT(*) FROM instrumentos").fetchone()[0]
+
         if termo:
             padrao = f"%{termo}%"
             cur.execute(
@@ -337,8 +506,9 @@ class App(tk.Tk):
             id_, tipo, marca, modelo, numero_serie = linha
             self.tree.insert("", "end", iid=str(id_), values=(tipo or "", marca or "", modelo or "", numero_serie or ""))
 
-        self.label_total.config(text=f"{len(linhas)} instrumento(s)")
-        self._atualizar_preview()
+        self.label_subtitulo.configure(text=f"{total_geral} instrumento(s) cadastrado(s)")
+        self.label_total.configure(text=f"{len(linhas)} de {total_geral} instrumentos")
+        self._atualizar_detalhes()
 
     def _clique_na_lista(self, event):
         if not self.tree.identify_row(event.y):
@@ -426,44 +596,61 @@ class App(tk.Tk):
             self.con.commit()
             self._carregar_lista()
 
-    def _atualizar_preview(self):
+    def _atualizar_detalhes(self):
         ids = self._ids_selecionados()
-        caminho = None
 
-        if len(ids) == 1:
-            dados = self._buscar_dados(ids[0])
-            caminho = dados.get("foto_path") if dados else None
+        if not ids:
+            self._preencher_detalhes(tipo="", nome="", marca="", modelo="", numero_serie="", caminho_foto=None)
+            self.botao_editar_detalhe.configure(state="disabled")
+            self.botao_excluir_detalhe.configure(state="disabled")
+            return
 
-        if caminho and os.path.isfile(caminho):
+        if len(ids) > 1:
+            self._preencher_detalhes(
+                tipo="", nome=f"{len(ids)} itens selecionados",
+                marca="", modelo="", numero_serie="", caminho_foto=None,
+            )
+            self.botao_editar_detalhe.configure(state="disabled")
+            self.botao_excluir_detalhe.configure(state="normal")
+            return
+
+        dados = self._buscar_dados(ids[0]) or {}
+        nome = " ".join(p for p in [dados.get("marca"), dados.get("modelo")] if p) or dados.get("tipo", "")
+        self._preencher_detalhes(
+            tipo=dados.get("tipo", ""), nome=nome,
+            marca=dados.get("marca") or "", modelo=dados.get("modelo") or "",
+            numero_serie=dados.get("numero_serie") or "", caminho_foto=dados.get("foto_path"),
+        )
+        self.botao_editar_detalhe.configure(state="normal")
+        self.botao_excluir_detalhe.configure(state="normal")
+
+    def _preencher_detalhes(self, tipo, nome, marca, modelo, numero_serie, caminho_foto):
+        self.label_tipo_detalhe.configure(text=tipo.upper() if tipo else "")
+        self.label_nome_detalhe.configure(text=nome)
+        self._labels_detalhe["marca"].configure(text=marca)
+        self._labels_detalhe["modelo"].configure(text=modelo)
+        self._labels_detalhe["numero_serie"].configure(text=numero_serie)
+
+        self._foto_detalhe_caminho = caminho_foto
+        if caminho_foto and os.path.isfile(caminho_foto):
             try:
-                imagem = Image.open(caminho)
-                imagem.thumbnail(TAMANHO_PREVIEW)
-                self._preview_img = ImageTk.PhotoImage(imagem)
-                self.label_preview.configure(image=self._preview_img)
+                imagem = Image.open(caminho_foto)
+                imagem.thumbnail(TAMANHO_FOTO_DETALHE)
+                self._foto_detalhe_img = ctk.CTkImage(
+                    light_image=imagem, dark_image=imagem, size=imagem.size,
+                )
+                self.label_foto_detalhe.configure(image=self._foto_detalhe_img, text="")
                 return
             except Exception:
                 pass
 
-        self._limpar_preview()
+        self._foto_detalhe_img = self._imagem_vazia
+        self.label_foto_detalhe.configure(image=self._imagem_vazia, text="")
 
-    def _limpar_preview(self):
-        self._preview_img = None
-        self.label_preview.configure(image="")
-
-    def _abrir_foto(self):
-        id_ = self._id_selecionado()
-        if id_ is None:
-            messagebox.showinfo("Nenhum instrumento selecionado", "Selecione um instrumento na lista primeiro.")
-            return
-        dados = self._buscar_dados(id_)
-        caminho = dados.get("foto_path")
-        if not caminho:
-            messagebox.showinfo("Sem foto", "Este instrumento não tem foto cadastrada.")
-            return
-        if not os.path.isfile(caminho):
-            messagebox.showwarning("Arquivo não encontrado", f"Não foi possível encontrar o arquivo:\n{caminho}")
-            return
-        os.startfile(caminho)
+    def _abrir_foto_detalhe(self, event=None):
+        caminho = self._foto_detalhe_caminho
+        if caminho and os.path.isfile(caminho):
+            os.startfile(caminho)
 
 
 def _identificar_processo_windows():
