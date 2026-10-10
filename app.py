@@ -1,11 +1,17 @@
+import glob
 import os
+import shutil
 import sqlite3
 import tkinter as tk
 import webbrowser
+from datetime import datetime
 from tkinter import ttk, messagebox, filedialog
 from urllib.parse import quote_plus
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "instrumentos.db")
+PASTA_BASE = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(PASTA_BASE, "instrumentos.db")
+BACKUP_DIR = os.path.join(PASTA_BASE, "backups")
+MAX_BACKUPS = 20
 
 TIPOS = [
     "Amplificador", "Baixo", "Banjo", "Bateria", "Cabo", "Caixa de Som",
@@ -23,7 +29,26 @@ COLUNAS = [
 ]
 
 
+def fazer_backup(motivo="auto"):
+    """Copia o banco atual para a pasta backups/ antes de operações sensíveis ou ao abrir o app."""
+    if not os.path.isfile(DB_PATH):
+        return
+    os.makedirs(BACKUP_DIR, exist_ok=True)
+    carimbo = datetime.now().strftime("%Y%m%d_%H%M%S")
+    destino = os.path.join(BACKUP_DIR, f"instrumentos_{carimbo}_{motivo}.db")
+    shutil.copy2(DB_PATH, destino)
+    _limpar_backups_antigos()
+
+
+def _limpar_backups_antigos():
+    arquivos = sorted(glob.glob(os.path.join(BACKUP_DIR, "instrumentos_*.db")))
+    excesso = len(arquivos) - MAX_BACKUPS
+    for antigo in arquivos[:max(excesso, 0)]:
+        os.remove(antigo)
+
+
 def conectar():
+    fazer_backup(motivo="abertura")
     con = sqlite3.connect(DB_PATH)
     con.execute("""
         CREATE TABLE IF NOT EXISTS instrumentos (
@@ -340,6 +365,7 @@ class App(tk.Tk):
             pergunta = f"Excluir {len(ids)} itens do cadastro?\n\n" + "\n".join(rotulos)
 
         if messagebox.askyesno("Confirmar exclusão", pergunta):
+            fazer_backup(motivo="antes_exclusao")
             self.con.executemany("DELETE FROM instrumentos WHERE id = ?", [(i,) for i in ids])
             self.con.commit()
             self._carregar_lista()
