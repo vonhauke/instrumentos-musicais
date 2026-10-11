@@ -280,8 +280,11 @@ class InstrumentoDialog(ctk.CTkToplevel):
 
     def _centralizar_sobre(self, master):
         self.update()
-        largura = self.winfo_width()
-        altura = self.winfo_height()
+        # usa o tamanho que o conteúdo realmente pede (reqwidth/reqheight), não o
+        # tamanho que a janela já tinha naquele instante — senão a janela fica
+        # travada menor do que o formulário, cortando os botões Salvar/Cancelar
+        largura = self.winfo_reqwidth()
+        altura = self.winfo_reqheight()
         x = master.winfo_rootx() + (master.winfo_width() - largura) // 2
         y = master.winfo_rooty() + (master.winfo_height() - altura) // 2
         # nunca deixa a janela nascer fora dos limites da tela
