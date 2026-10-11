@@ -194,6 +194,16 @@ def _limpar_backups_antigos():
         os.remove(antigo)
 
 
+def formatar_data(data_iso):
+    """Converte a data guardada no banco (AAAA-MM-DD, pra ordenar certo) para exibição em DD/MM/AAAA."""
+    if not data_iso:
+        return None
+    try:
+        return datetime.strptime(data_iso, "%Y-%m-%d").strftime("%d/%m/%Y")
+    except ValueError:
+        return data_iso
+
+
 def copiar_foto_para_pasta(caminho_original):
     """Garante que a foto do instrumento tenha uma cópia própria dentro de fotos/,
     em vez de só apontar pro arquivo original em outro lugar do computador."""
@@ -266,10 +276,21 @@ class InstrumentoDialog(ctk.CTkToplevel):
         self.bind("<Escape>", lambda e: self.destroy())
         self.protocol("WM_DELETE_WINDOW", self.destroy)
 
-        self.update_idletasks()
-        x = master.winfo_rootx() + (master.winfo_width() - self.winfo_width()) // 2
-        y = master.winfo_rooty() + (master.winfo_height() - self.winfo_height()) // 2
-        self.geometry(f"+{max(x, 0)}+{max(y, 0)}")
+        self._centralizar_sobre(master)
+
+    def _centralizar_sobre(self, master):
+        self.update()
+        largura = self.winfo_width()
+        altura = self.winfo_height()
+        x = master.winfo_rootx() + (master.winfo_width() - largura) // 2
+        y = master.winfo_rooty() + (master.winfo_height() - altura) // 2
+        # nunca deixa a janela nascer fora dos limites da tela
+        x = max(0, min(x, self.winfo_screenwidth() - largura))
+        y = max(0, min(y, self.winfo_screenheight() - altura))
+        # chama o geometry "cru" do Tk (não o do CTk) para não escalar de novo um
+        # tamanho que já está escalado — é isso que fazia a janela nascer fora do lugar
+        tk.Toplevel.geometry(self, f"{largura}x{altura}+{x}+{y}")
+        self.update()
 
     def t(self, chave, **kwargs):
         return traduzir(self.idioma, chave, **kwargs)
@@ -453,6 +474,7 @@ class App(ctk.CTk):
 
         self._montar_interface()
         self._carregar_lista()
+        self.after(50, lambda: self._centralizar_na_tela(1000, 640))
 
     def _aplicar_icone(self):
         if os.path.isfile(ICONE_PATH):
@@ -460,6 +482,19 @@ class App(ctk.CTk):
                 self.iconbitmap(ICONE_PATH)
             except tk.TclError:
                 pass
+
+    def _centralizar_na_tela(self, largura, altura):
+        """Centraliza a janela considerando o tamanho real já escalado pelo Windows (DPI),
+        em vez de só usar os pixels "lógicos" pedidos — evita a janela nascer fora da tela."""
+        self.geometry(f"{largura}x{altura}")
+        self.update_idletasks()
+        largura_real = self.winfo_width()
+        altura_real = self.winfo_height()
+        tela_largura = self.winfo_screenwidth()
+        tela_altura = self.winfo_screenheight()
+        x = max((tela_largura - largura_real) // 2, 0)
+        y = max((tela_altura - altura_real) // 2, 0)
+        self.geometry(f"+{x}+{y}")
 
     def t(self, chave, **kwargs):
         return traduzir(self.idioma, chave, **kwargs)
@@ -731,7 +766,7 @@ class App(ctk.CTk):
             id_, tipo, marca, modelo, numero_serie, data_inclusao = linha
             self.tree.insert(
                 "", "end", iid=str(id_),
-                values=(tipo or "", marca or "", modelo or "", numero_serie or "", data_inclusao or "—"),
+                values=(tipo or "", marca or "", modelo or "", numero_serie or "", formatar_data(data_inclusao) or "—"),
             )
 
         self.label_subtitulo.configure(text=self.t("subtitulo", n=total_geral))
@@ -849,7 +884,7 @@ class App(ctk.CTk):
             tipo=dados.get("tipo", ""), nome=nome,
             marca=dados.get("marca") or "", modelo=dados.get("modelo") or "",
             numero_serie=dados.get("numero_serie") or "", caminho_foto=resolver_foto(dados.get("foto_path")),
-            data_inclusao=dados.get("data_inclusao") or "—",
+            data_inclusao=formatar_data(dados.get("data_inclusao")) or "—",
         )
         self.bloco_detalhe.pack(fill="x")
         self.botao_editar_detalhe.configure(state="normal")
