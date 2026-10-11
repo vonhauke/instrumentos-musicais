@@ -17,5 +17,6 @@ PyInstaller.__main__.run([
     "--name", "my chaotic room",
     "--icon", ICONE,
     "--add-data", f"{os.path.join(AQUI, 'assets_icone', 'icone_app_instrumentos')};assets_icone/icone_app_instrumentos",
+    "--add-data", f"{os.path.join(AQUI, 'fontes')};fontes",
     "--collect-all", "customtkinter",
 ])

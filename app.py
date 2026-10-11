@@ -1,5 +1,4 @@
 import glob
-import json
 import os
 import shutil
 import sqlite3
@@ -21,7 +20,7 @@ TAMANHO_FOTO_DETALHE = (234, 150)
 
 # Recursos (ícones) ficam junto do código; no .exe do PyInstaller, na pasta temporária de extração.
 PASTA_RECURSOS = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
-# Dados do usuário (banco, fotos, backups, idioma): no .exe ficam em %APPDATA%, porque a pasta
+# Dados do usuário (banco, fotos, backups): no .exe ficam em %APPDATA%, porque a pasta
 # temporária some a cada vez que o app fecha. Rodando pelo código-fonte, ficam ao lado do app.py.
 if getattr(sys, "frozen", False):
     PASTA_BASE = os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"), "my chaotic room")
@@ -51,12 +50,22 @@ COLUNAS = [
     ("data_inclusao", "coluna_data_inclusao", 120),
 ]
 
-FONTE = "Aktiv Grotesk"
+PASTA_FONTES = os.path.join(PASTA_RECURSOS, "fontes")
+FONTE = "Inter Medium"
+FONTE_NEGRITO = "Inter"
 
-# ---- idiomas ----
-IDIOMAS = {"pt": "Português", "en": "English"}
+
+def carregar_fontes():
+    """Registra as fontes Inter (licença OFL, na pasta fontes/) só para este processo,
+    sem instalar nada no Windows. Precisa rodar antes de criar a janela."""
+    try:
+        import ctypes
+        for arquivo in ("Inter-Medium.ttf", "Inter-Bold.ttf"):
+            ctypes.windll.gdi32.AddFontResourceExW(os.path.join(PASTA_FONTES, arquivo), 0x10, 0)
+    except Exception:
+        pass
+
 IDIOMA_PADRAO = "pt"
-CONFIG_PATH = os.path.join(PASTA_BASE, "config.json")
 
 TEXTOS = {
     "pt": {
@@ -99,46 +108,6 @@ TEXTOS = {
         "filtro_imagens": "Imagens",
         "filtro_todos_arquivos": "Todos os arquivos",
     },
-    "en": {
-        "subtitulo": "{n} instrument(s) registered",
-        "busca_placeholder": "Search by type, brand, model…",
-        "botao_novo": "＋ New instrument",
-        "coluna_tipo": "Type",
-        "coluna_marca": "Brand",
-        "coluna_modelo": "Model",
-        "coluna_serie": "Serial no.",
-        "coluna_data_inclusao": "Date added",
-        "rodape": "{x} of {y} instruments",
-        "botao_editar": "Edit",
-        "botao_excluir": "Delete",
-        "msg_selecione_titulo": "Select only one item",
-        "msg_selecione_corpo": "This action works with one item at a time. Select only one instrument in the list.",
-        "msg_nenhum_titulo": "No instrument selected",
-        "msg_nenhum_editar": "Select an instrument in the list first.",
-        "msg_nenhum_excluir": "Select one or more instruments in the list first.",
-        "msg_confirmar_exclusao_titulo": "Confirm deletion",
-        "msg_excluir_um": 'Delete "{rotulo}" from the catalog?',
-        "msg_excluir_varios": "Delete {n} items from the catalog?\n\n{lista}",
-        "dialog_titulo_novo": "New instrument",
-        "dialog_titulo_editar": "Edit instrument",
-        "campo_tipo": "Type",
-        "campo_marca": "Brand",
-        "campo_modelo": "Model",
-        "campo_serie": "Serial number",
-        "botao_buscar_google": "Search on Google",
-        "campo_foto": "Photo (file)",
-        "botao_escolher": "Choose...",
-        "campo_observacoes": "Notes",
-        "botao_cancelar": "Cancel",
-        "botao_salvar": "Save",
-        "msg_campo_obrigatorio_titulo": "Required field",
-        "msg_campo_obrigatorio_corpo": "Enter the item's type.",
-        "msg_preencha_dados_titulo": "Fill in the details first",
-        "msg_preencha_dados_corpo": "Enter at least the brand or model to search.",
-        "dialogo_escolher_foto_titulo": "Choose instrument photo",
-        "filtro_imagens": "Images",
-        "filtro_todos_arquivos": "All files",
-    },
 }
 
 
@@ -146,24 +115,6 @@ def traduzir(idioma, chave, **kwargs):
     texto = TEXTOS.get(idioma, TEXTOS[IDIOMA_PADRAO])[chave]
     return texto.format(**kwargs) if kwargs else texto
 
-
-def carregar_idioma():
-    try:
-        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-            dados = json.load(f)
-            if dados.get("idioma") in TEXTOS:
-                return dados["idioma"]
-    except Exception:
-        pass
-    return IDIOMA_PADRAO
-
-
-def salvar_idioma(idioma):
-    try:
-        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-            json.dump({"idioma": idioma}, f)
-    except Exception:
-        pass
 
 # paleta extraída de maquete_tela_principal.html
 COR_FUNDO = "#14171c"
@@ -385,7 +336,7 @@ class InstrumentoDialog(ctk.CTkToplevel):
         ctk.CTkButton(
             botoes, text=self.t("botao_salvar"), command=self._salvar,
             fg_color=COR_OURO, hover_color=COR_OURO_HOVER, text_color=COR_OURO_TEXTO,
-            corner_radius=8, height=38, font=(FONTE, 14, "bold"),
+            corner_radius=8, height=38, font=(FONTE_NEGRITO, 14, "bold"),
         ).pack(side="right")
         ctk.CTkButton(
             botoes, text=self.t("botao_cancelar"), command=self.destroy,
@@ -469,7 +420,7 @@ class InstrumentoDialog(ctk.CTkToplevel):
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.idioma = carregar_idioma()
+        self.idioma = IDIOMA_PADRAO
         self.title("my chaotic room")
         self.configure(fg_color=COR_FUNDO)
         self.geometry("1000x640")
@@ -511,24 +462,6 @@ class App(ctk.CTk):
     def t(self, chave, **kwargs):
         return traduzir(self.idioma, chave, **kwargs)
 
-    def _mudar_idioma(self, nome_exibido):
-        novo_idioma = next((cod for cod, nome in IDIOMAS.items() if nome == nome_exibido), IDIOMA_PADRAO)
-        if novo_idioma == self.idioma:
-            return
-        self.idioma = novo_idioma
-        salvar_idioma(novo_idioma)
-        self._aplicar_idioma()
-
-    def _aplicar_idioma(self):
-        self.botao_novo.configure(text=self.t("botao_novo"))
-        self.entrada_busca.configure(placeholder_text=self.t("busca_placeholder"))
-        self.botao_editar_detalhe.configure(text=self.t("botao_editar"))
-        self.botao_excluir_detalhe.configure(text=self.t("botao_excluir"))
-        for legenda, texto_key in self._legendas_detalhe.values():
-            legenda.configure(text=self.t(texto_key))
-        self._atualizar_cabecalhos()
-        self._carregar_lista()
-
     def _montar_interface(self):
         self._configurar_estilo_treeview()
 
@@ -545,7 +478,7 @@ class App(ctk.CTk):
         textos.pack(side="left")
         ctk.CTkLabel(
             textos, text="my chaotic room", text_color=COR_TEXTO,
-            font=(FONTE, 20, "bold"), anchor="w",
+            font=(FONTE_NEGRITO, 20, "bold"), anchor="w",
         ).pack(anchor="w")
         self.label_subtitulo = ctk.CTkLabel(
             textos, text="", text_color=COR_TEXTO_FRACO,
@@ -556,7 +489,7 @@ class App(ctk.CTk):
         self.botao_novo = ctk.CTkButton(
             cabecalho, text=self.t("botao_novo"), command=self._novo,
             fg_color=COR_OURO, hover_color=COR_OURO_HOVER, text_color=COR_OURO_TEXTO,
-            font=(FONTE, 14, "bold"), corner_radius=10, height=38,
+            font=(FONTE_NEGRITO, 14, "bold"), corner_radius=10, height=38,
         )
         self.botao_novo.pack(side="right")
 
@@ -578,15 +511,6 @@ class App(ctk.CTk):
         )
         self.entrada_busca.pack(side="left", fill="both", expand=True, padx=(0, 12))
         self.entrada_busca.bind("<KeyRelease>", lambda e: self._carregar_lista())
-
-        self.var_idioma = tk.StringVar(value=IDIOMAS[self.idioma])
-        ctk.CTkOptionMenu(
-            cabecalho, values=list(IDIOMAS.values()), variable=self.var_idioma,
-            command=self._mudar_idioma, width=120, height=38, corner_radius=10,
-            fg_color=COR_PAINEL, button_color=COR_GHOST, button_hover_color=COR_GHOST_HOVER,
-            text_color=COR_TEXTO, dropdown_fg_color=COR_PAINEL, dropdown_hover_color=COR_GHOST,
-            dropdown_text_color=COR_TEXTO, font=(FONTE, 13),
-        ).pack(side="right", padx=(0, 12))
 
         # ---- corpo: tabela + painel de detalhes ----
         corpo = ctk.CTkFrame(self, fg_color="transparent")
@@ -651,12 +575,12 @@ class App(ctk.CTk):
 
         self.label_tipo_detalhe = ctk.CTkLabel(
             self.bloco_detalhe, text="", text_color=COR_OURO,
-            font=(FONTE, 12, "bold"), anchor="w",
+            font=(FONTE_NEGRITO, 12, "bold"), anchor="w",
         )
         self.label_tipo_detalhe.pack(fill="x", pady=(14, 0))
         self.label_nome_detalhe = ctk.CTkLabel(
             self.bloco_detalhe, text="", text_color=COR_TEXTO,
-            font=(FONTE, 18, "bold"), anchor="w", justify="left", wraplength=230,
+            font=(FONTE_NEGRITO, 18, "bold"), anchor="w", justify="left", wraplength=230,
         )
         self.label_nome_detalhe.pack(fill="x")
 
@@ -716,7 +640,7 @@ class App(ctk.CTk):
         estilo.configure(
             "Instrumentos.Treeview.Heading",
             background=COR_PAINEL, foreground=COR_TEXTO_FRACO,
-            font=(FONTE, 11, "bold"), borderwidth=0, relief="flat",
+            font=(FONTE_NEGRITO, 11, "bold"), borderwidth=0, relief="flat",
             bordercolor=COR_PAINEL, lightcolor=COR_PAINEL, darkcolor=COR_PAINEL,
         )
         estilo.map(
@@ -943,4 +867,5 @@ def _identificar_processo_windows():
 
 if __name__ == "__main__":
     _identificar_processo_windows()
+    carregar_fontes()
     App().mainloop()
