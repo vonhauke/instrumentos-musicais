@@ -4,6 +4,7 @@ import os
 import shutil
 import sqlite3
 import tkinter as tk
+import uuid
 import webbrowser
 from datetime import datetime
 from tkinter import ttk, messagebox, filedialog
@@ -20,6 +21,7 @@ TAMANHO_FOTO_DETALHE = (234, 150)
 PASTA_BASE = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(PASTA_BASE, "instrumentos.db")
 BACKUP_DIR = os.path.join(PASTA_BASE, "backups")
+FOTOS_DIR = os.path.join(PASTA_BASE, "fotos")
 MAX_BACKUPS = 20
 ICONE_PATH = os.path.join(PASTA_BASE, "assets_icone", "icone_app_instrumentos", "icone.ico")
 ICONE_PNG_PATH = os.path.join(PASTA_BASE, "assets_icone", "icone_app_instrumentos", "icone_1024.png")
@@ -190,6 +192,34 @@ def _limpar_backups_antigos():
     excesso = len(arquivos) - MAX_BACKUPS
     for antigo in arquivos[:max(excesso, 0)]:
         os.remove(antigo)
+
+
+def copiar_foto_para_pasta(caminho_original):
+    """Garante que a foto do instrumento tenha uma cópia própria dentro de fotos/,
+    em vez de só apontar pro arquivo original em outro lugar do computador."""
+    if not caminho_original:
+        return caminho_original
+
+    if not os.path.isabs(caminho_original):
+        return caminho_original  # já é um nome gerenciado (ou inválido) — mantém como está
+
+    if not os.path.isfile(caminho_original):
+        return caminho_original  # caminho absoluto que não existe — mantém como está
+
+    os.makedirs(FOTOS_DIR, exist_ok=True)
+    extensao = os.path.splitext(caminho_original)[1]
+    novo_nome = f"{uuid.uuid4().hex}{extensao}"
+    shutil.copy2(caminho_original, os.path.join(FOTOS_DIR, novo_nome))
+    return novo_nome
+
+
+def resolver_foto(nome_ou_caminho):
+    """Transforma o valor salvo no banco no caminho real do arquivo no disco."""
+    if not nome_ou_caminho:
+        return None
+    if os.path.isabs(nome_ou_caminho):
+        return nome_ou_caminho  # fotos cadastradas antes dessa mudança
+    return os.path.join(FOTOS_DIR, nome_ou_caminho)
 
 
 def conectar():
@@ -397,7 +427,7 @@ class InstrumentoDialog(ctk.CTkToplevel):
             "marca": self.campos["marca"].get().strip(),
             "modelo": self.campos["modelo"].get().strip(),
             "numero_serie": self.campos["numero_serie"].get().strip(),
-            "foto_path": self.campos["foto_path"].get().strip(),
+            "foto_path": copiar_foto_para_pasta(self.campos["foto_path"].get().strip()),
             "observacoes": self.campo_observacoes.get("1.0", "end").strip(),
         }
         self.destroy()
@@ -818,7 +848,7 @@ class App(ctk.CTk):
         self._preencher_detalhes(
             tipo=dados.get("tipo", ""), nome=nome,
             marca=dados.get("marca") or "", modelo=dados.get("modelo") or "",
-            numero_serie=dados.get("numero_serie") or "", caminho_foto=dados.get("foto_path"),
+            numero_serie=dados.get("numero_serie") or "", caminho_foto=resolver_foto(dados.get("foto_path")),
             data_inclusao=dados.get("data_inclusao") or "—",
         )
         self.bloco_detalhe.pack(fill="x")

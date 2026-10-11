@@ -5,3 +5,4 @@ instrumentos_backup*.db
 backups/
 *.lnk
 config.json
+fotos/
