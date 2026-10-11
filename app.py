@@ -1,4 +1,5 @@
 import glob
+import json
 import os
 import shutil
 import sqlite3
@@ -32,13 +33,123 @@ TIPOS = [
 ]
 
 COLUNAS = [
-    ("tipo", "Tipo", 160),
-    ("marca", "Marca", 140),
-    ("modelo", "Modelo", 140),
-    ("numero_serie", "Nº de série", 140),
+    ("tipo", "coluna_tipo", 160),
+    ("marca", "coluna_marca", 140),
+    ("modelo", "coluna_modelo", 140),
+    ("numero_serie", "coluna_serie", 140),
 ]
 
 FONTE = "Aktiv Grotesk"
+
+# ---- idiomas ----
+IDIOMAS = {"pt": "Português", "en": "English"}
+IDIOMA_PADRAO = "pt"
+CONFIG_PATH = os.path.join(PASTA_BASE, "config.json")
+
+TEXTOS = {
+    "pt": {
+        "subtitulo": "{n} instrumento(s) cadastrado(s)",
+        "busca_placeholder": "Buscar por tipo, marca, modelo…",
+        "botao_novo": "＋ Novo instrumento",
+        "coluna_tipo": "Tipo",
+        "coluna_marca": "Marca",
+        "coluna_modelo": "Modelo",
+        "coluna_serie": "Nº de série",
+        "rodape": "{x} de {y} instrumentos",
+        "botao_editar": "Editar",
+        "botao_excluir": "Excluir",
+        "msg_selecione_titulo": "Selecione apenas um item",
+        "msg_selecione_corpo": "Essa ação funciona com um item por vez. Selecione apenas um instrumento na lista.",
+        "msg_nenhum_titulo": "Nenhum instrumento selecionado",
+        "msg_nenhum_editar": "Selecione um instrumento na lista primeiro.",
+        "msg_nenhum_excluir": "Selecione um ou mais instrumentos na lista primeiro.",
+        "msg_confirmar_exclusao_titulo": "Confirmar exclusão",
+        "msg_excluir_um": 'Excluir "{rotulo}" do cadastro?',
+        "msg_excluir_varios": "Excluir {n} itens do cadastro?\n\n{lista}",
+        "dialog_titulo_novo": "Novo instrumento",
+        "dialog_titulo_editar": "Editar instrumento",
+        "campo_tipo": "Tipo",
+        "campo_marca": "Marca",
+        "campo_modelo": "Modelo",
+        "campo_serie": "Número de série",
+        "botao_buscar_google": "Buscar no Google",
+        "campo_foto": "Foto (arquivo)",
+        "botao_escolher": "Escolher...",
+        "campo_observacoes": "Observações",
+        "botao_cancelar": "Cancelar",
+        "botao_salvar": "Salvar",
+        "msg_campo_obrigatorio_titulo": "Campo obrigatório",
+        "msg_campo_obrigatorio_corpo": "Informe o tipo do item.",
+        "msg_preencha_dados_titulo": "Preencha os dados primeiro",
+        "msg_preencha_dados_corpo": "Informe ao menos a marca ou o modelo para buscar.",
+        "dialogo_escolher_foto_titulo": "Escolher foto do instrumento",
+        "filtro_imagens": "Imagens",
+        "filtro_todos_arquivos": "Todos os arquivos",
+    },
+    "en": {
+        "subtitulo": "{n} instrument(s) registered",
+        "busca_placeholder": "Search by type, brand, model…",
+        "botao_novo": "＋ New instrument",
+        "coluna_tipo": "Type",
+        "coluna_marca": "Brand",
+        "coluna_modelo": "Model",
+        "coluna_serie": "Serial no.",
+        "rodape": "{x} of {y} instruments",
+        "botao_editar": "Edit",
+        "botao_excluir": "Delete",
+        "msg_selecione_titulo": "Select only one item",
+        "msg_selecione_corpo": "This action works with one item at a time. Select only one instrument in the list.",
+        "msg_nenhum_titulo": "No instrument selected",
+        "msg_nenhum_editar": "Select an instrument in the list first.",
+        "msg_nenhum_excluir": "Select one or more instruments in the list first.",
+        "msg_confirmar_exclusao_titulo": "Confirm deletion",
+        "msg_excluir_um": 'Delete "{rotulo}" from the catalog?',
+        "msg_excluir_varios": "Delete {n} items from the catalog?\n\n{lista}",
+        "dialog_titulo_novo": "New instrument",
+        "dialog_titulo_editar": "Edit instrument",
+        "campo_tipo": "Type",
+        "campo_marca": "Brand",
+        "campo_modelo": "Model",
+        "campo_serie": "Serial number",
+        "botao_buscar_google": "Search on Google",
+        "campo_foto": "Photo (file)",
+        "botao_escolher": "Choose...",
+        "campo_observacoes": "Notes",
+        "botao_cancelar": "Cancel",
+        "botao_salvar": "Save",
+        "msg_campo_obrigatorio_titulo": "Required field",
+        "msg_campo_obrigatorio_corpo": "Enter the item's type.",
+        "msg_preencha_dados_titulo": "Fill in the details first",
+        "msg_preencha_dados_corpo": "Enter at least the brand or model to search.",
+        "dialogo_escolher_foto_titulo": "Choose instrument photo",
+        "filtro_imagens": "Images",
+        "filtro_todos_arquivos": "All files",
+    },
+}
+
+
+def traduzir(idioma, chave, **kwargs):
+    texto = TEXTOS.get(idioma, TEXTOS[IDIOMA_PADRAO])[chave]
+    return texto.format(**kwargs) if kwargs else texto
+
+
+def carregar_idioma():
+    try:
+        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+            dados = json.load(f)
+            if dados.get("idioma") in TEXTOS:
+                return dados["idioma"]
+    except Exception:
+        pass
+    return IDIOMA_PADRAO
+
+
+def salvar_idioma(idioma):
+    try:
+        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+            json.dump({"idioma": idioma}, f)
+    except Exception:
+        pass
 
 # paleta extraída de maquete_tela_principal.html
 COR_FUNDO = "#14171c"
@@ -101,9 +212,10 @@ class InstrumentoDialog(ctk.CTkToplevel):
 
     def __init__(self, master, dados=None):
         super().__init__(master)
+        self.idioma = getattr(master, "idioma", IDIOMA_PADRAO)
         self.resultado = None
         self.dados_originais = dados
-        self.title("Editar instrumento" if dados else "Novo instrumento")
+        self.title(self.t("dialog_titulo_editar") if dados else self.t("dialog_titulo_novo"))
         self.configure(fg_color=COR_FUNDO)
         self.resizable(False, False)
         self.transient(master)
@@ -122,6 +234,9 @@ class InstrumentoDialog(ctk.CTkToplevel):
         x = master.winfo_rootx() + (master.winfo_width() - self.winfo_width()) // 2
         y = master.winfo_rooty() + (master.winfo_height() - self.winfo_height()) // 2
         self.geometry(f"+{max(x, 0)}+{max(y, 0)}")
+
+    def t(self, chave, **kwargs):
+        return traduzir(self.idioma, chave, **kwargs)
 
     def _montar_formulario(self):
         frame = ctk.CTkFrame(self, fg_color=COR_FUNDO)
@@ -145,7 +260,7 @@ class InstrumentoDialog(ctk.CTkToplevel):
             self.campos[chave] = var
             return entry
 
-        rotulo("Tipo", obrigatorio=True, primeiro=True)
+        rotulo(self.t("campo_tipo"), obrigatorio=True, primeiro=True)
         var_tipo = tk.StringVar()
         combo_tipo = ctk.CTkComboBox(
             frame, values=TIPOS, variable=var_tipo, width=320, height=36,
@@ -162,17 +277,17 @@ class InstrumentoDialog(ctk.CTkToplevel):
         self.campos["tipo"] = var_tipo
         self._combo_tipo = combo_tipo
 
-        add_entry("Marca", "marca")
-        add_entry("Modelo", "modelo")
-        add_entry("Número de série", "numero_serie")
+        add_entry(self.t("campo_marca"), "marca")
+        add_entry(self.t("campo_modelo"), "modelo")
+        add_entry(self.t("campo_serie"), "numero_serie")
 
         ctk.CTkButton(
-            frame, text="Buscar no Google", command=self._buscar_no_google,
+            frame, text=self.t("botao_buscar_google"), command=self._buscar_no_google,
             fg_color=COR_GHOST, hover_color=COR_GHOST_HOVER, text_color=COR_TEXTO,
             corner_radius=8, height=34, font=(FONTE, 13),
         ).pack(fill="x", pady=(14, 0))
 
-        rotulo("Foto (arquivo)")
+        rotulo(self.t("campo_foto"))
         foto_frame = ctk.CTkFrame(frame, fg_color="transparent")
         foto_frame.pack(fill="x")
         var_foto = tk.StringVar()
@@ -182,13 +297,13 @@ class InstrumentoDialog(ctk.CTkToplevel):
             corner_radius=8, text_color=COR_TEXTO, font=(FONTE, 13),
         ).pack(side="left", fill="x", expand=True, padx=(0, 8))
         ctk.CTkButton(
-            foto_frame, text="Escolher...", command=lambda: self._escolher_foto(var_foto),
+            foto_frame, text=self.t("botao_escolher"), command=lambda: self._escolher_foto(var_foto),
             fg_color=COR_GHOST, hover_color=COR_GHOST_HOVER, text_color=COR_TEXTO,
             corner_radius=8, height=36, width=90, font=(FONTE, 13),
         ).pack(side="left")
         self.campos["foto_path"] = var_foto
 
-        rotulo("Observações")
+        rotulo(self.t("campo_observacoes"))
         self.campo_observacoes = ctk.CTkTextbox(
             frame, width=320, height=80,
             fg_color=COR_PAINEL, border_color=COR_BORDA, border_width=1,
@@ -199,12 +314,12 @@ class InstrumentoDialog(ctk.CTkToplevel):
         botoes = ctk.CTkFrame(frame, fg_color="transparent")
         botoes.pack(fill="x", pady=(20, 0))
         ctk.CTkButton(
-            botoes, text="Salvar", command=self._salvar,
+            botoes, text=self.t("botao_salvar"), command=self._salvar,
             fg_color=COR_OURO, hover_color=COR_OURO_HOVER, text_color=COR_OURO_TEXTO,
             corner_radius=8, height=38, font=(FONTE, 14, "bold"),
         ).pack(side="right")
         ctk.CTkButton(
-            botoes, text="Cancelar", command=self.destroy,
+            botoes, text=self.t("botao_cancelar"), command=self.destroy,
             fg_color=COR_GHOST, hover_color=COR_GHOST_HOVER, text_color=COR_TEXTO,
             corner_radius=8, height=38, font=(FONTE, 13),
         ).pack(side="right", padx=(0, 8))
@@ -240,8 +355,8 @@ class InstrumentoDialog(ctk.CTkToplevel):
         termo = " ".join(p for p in partes if p)
         if not termo:
             messagebox.showinfo(
-                "Preencha os dados primeiro",
-                "Informe ao menos a marca ou o modelo para buscar.",
+                self.t("msg_preencha_dados_titulo"),
+                self.t("msg_preencha_dados_corpo"),
                 parent=self,
             )
             return
@@ -250,10 +365,10 @@ class InstrumentoDialog(ctk.CTkToplevel):
 
     def _escolher_foto(self, var_foto):
         caminho = filedialog.askopenfilename(
-            title="Escolher foto do instrumento",
+            title=self.t("dialogo_escolher_foto_titulo"),
             filetypes=[
-                ("Imagens", "*.jpg *.jpeg *.png *.gif *.bmp *.webp *.tif *.tiff *.heic *.heif *.ico"),
-                ("Todos os arquivos", "*.*"),
+                (self.t("filtro_imagens"), "*.jpg *.jpeg *.png *.gif *.bmp *.webp *.tif *.tiff *.heic *.heif *.ico"),
+                (self.t("filtro_todos_arquivos"), "*.*"),
             ],
         )
         if caminho:
@@ -267,7 +382,7 @@ class InstrumentoDialog(ctk.CTkToplevel):
     def _salvar(self):
         tipo = self.campos["tipo"].get().strip()
         if not tipo:
-            messagebox.showwarning("Campo obrigatório", "Informe o tipo do item.", parent=self)
+            messagebox.showwarning(self.t("msg_campo_obrigatorio_titulo"), self.t("msg_campo_obrigatorio_corpo"), parent=self)
             self._combo_tipo.focus_set()
             return
 
@@ -285,6 +400,7 @@ class InstrumentoDialog(ctk.CTkToplevel):
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
+        self.idioma = carregar_idioma()
         self.title("my chaotic room")
         self.configure(fg_color=COR_FUNDO)
         self.geometry("1000x640")
@@ -308,6 +424,27 @@ class App(ctk.CTk):
                 self.iconbitmap(ICONE_PATH)
             except tk.TclError:
                 pass
+
+    def t(self, chave, **kwargs):
+        return traduzir(self.idioma, chave, **kwargs)
+
+    def _mudar_idioma(self, nome_exibido):
+        novo_idioma = next((cod for cod, nome in IDIOMAS.items() if nome == nome_exibido), IDIOMA_PADRAO)
+        if novo_idioma == self.idioma:
+            return
+        self.idioma = novo_idioma
+        salvar_idioma(novo_idioma)
+        self._aplicar_idioma()
+
+    def _aplicar_idioma(self):
+        self.botao_novo.configure(text=self.t("botao_novo"))
+        self.entrada_busca.configure(placeholder_text=self.t("busca_placeholder"))
+        self.botao_editar_detalhe.configure(text=self.t("botao_editar"))
+        self.botao_excluir_detalhe.configure(text=self.t("botao_excluir"))
+        for legenda, texto_key in self._legendas_detalhe.values():
+            legenda.configure(text=self.t(texto_key))
+        self._atualizar_cabecalhos()
+        self._carregar_lista()
 
     def _montar_interface(self):
         self._configurar_estilo_treeview()
@@ -333,11 +470,12 @@ class App(ctk.CTk):
         )
         self.label_subtitulo.pack(anchor="w")
 
-        ctk.CTkButton(
-            cabecalho, text="＋ Novo instrumento", command=self._novo,
+        self.botao_novo = ctk.CTkButton(
+            cabecalho, text=self.t("botao_novo"), command=self._novo,
             fg_color=COR_OURO, hover_color=COR_OURO_HOVER, text_color=COR_OURO_TEXTO,
             font=(FONTE, 14, "bold"), corner_radius=10, height=38,
-        ).pack(side="right")
+        )
+        self.botao_novo.pack(side="right")
 
         busca_caixa = ctk.CTkFrame(
             cabecalho, fg_color=COR_PAINEL, border_color=COR_BORDA, border_width=1,
@@ -350,13 +488,22 @@ class App(ctk.CTk):
         ).pack(side="left", padx=(12, 4))
         self.entrada_busca = ctk.CTkEntry(
             busca_caixa,
-            placeholder_text="Buscar por tipo, marca, modelo…",
+            placeholder_text=self.t("busca_placeholder"),
             fg_color="transparent", border_width=0,
             text_color=COR_TEXTO, placeholder_text_color=COR_TEXTO_FRACO2,
             font=(FONTE, 13),
         )
         self.entrada_busca.pack(side="left", fill="both", expand=True, padx=(0, 12))
         self.entrada_busca.bind("<KeyRelease>", lambda e: self._carregar_lista())
+
+        self.var_idioma = tk.StringVar(value=IDIOMAS[self.idioma])
+        ctk.CTkOptionMenu(
+            cabecalho, values=list(IDIOMAS.values()), variable=self.var_idioma,
+            command=self._mudar_idioma, width=120, height=38, corner_radius=10,
+            fg_color=COR_PAINEL, button_color=COR_GHOST, button_hover_color=COR_GHOST_HOVER,
+            text_color=COR_TEXTO, dropdown_fg_color=COR_PAINEL, dropdown_hover_color=COR_GHOST,
+            dropdown_text_color=COR_TEXTO, font=(FONTE, 13),
+        ).pack(side="right", padx=(0, 12))
 
         # ---- corpo: tabela + painel de detalhes ----
         corpo = ctk.CTkFrame(self, fg_color="transparent")
@@ -373,8 +520,8 @@ class App(ctk.CTk):
             lista_frame, columns=colunas, show="headings",
             selectmode="extended", style="Instrumentos.Treeview",
         )
-        for chave, titulo, largura in COLUNAS:
-            self.tree.heading(chave, text=titulo, command=lambda c=chave: self._ordenar_por(c))
+        for chave, texto_key, largura in COLUNAS:
+            self.tree.heading(chave, text=self.t(texto_key), command=lambda c=chave: self._ordenar_por(c))
             self.tree.column(chave, width=largura, anchor="w")
         self.tree.pack(side="left", fill="both", expand=True)
         self.tree.bind("<Double-1>", lambda e: self._editar())
@@ -434,11 +581,14 @@ class App(ctk.CTk):
         grade.pack(fill="x", pady=(14, 0))
         grade.columnconfigure(1, weight=1)
         self._labels_detalhe = {}
-        for i, (rotulo, chave) in enumerate([("Marca", "marca"), ("Modelo", "modelo"), ("Nº de série", "numero_serie")]):
-            ctk.CTkLabel(
-                grade, text=rotulo, text_color=COR_TEXTO_FRACO,
+        self._legendas_detalhe = {}
+        for i, (texto_key, chave) in enumerate([("campo_marca", "marca"), ("campo_modelo", "modelo"), ("coluna_serie", "numero_serie")]):
+            legenda = ctk.CTkLabel(
+                grade, text=self.t(texto_key), text_color=COR_TEXTO_FRACO,
                 font=(FONTE, 13), anchor="w",
-            ).grid(row=i, column=0, sticky="w", pady=3)
+            )
+            legenda.grid(row=i, column=0, sticky="w", pady=3)
+            self._legendas_detalhe[chave] = (legenda, texto_key)
             fonte_valor = ("Consolas", 13) if chave == "numero_serie" else (FONTE, 13)
             cor_valor = COR_MONO if chave == "numero_serie" else COR_TEXTO
             valor = ctk.CTkLabel(
@@ -451,13 +601,13 @@ class App(ctk.CTk):
         acoes = ctk.CTkFrame(conteudo_detalhe, fg_color="transparent")
         acoes.pack(fill="x", side="bottom", pady=(14, 0))
         self.botao_editar_detalhe = ctk.CTkButton(
-            acoes, text="Editar", command=self._editar,
+            acoes, text=self.t("botao_editar"), command=self._editar,
             fg_color=COR_GHOST, hover_color=COR_GHOST_HOVER, text_color=COR_TEXTO,
             corner_radius=10, height=36, font=(FONTE, 13),
         )
         self.botao_editar_detalhe.pack(side="left", fill="x", expand=True, padx=(0, 8))
         self.botao_excluir_detalhe = ctk.CTkButton(
-            acoes, text="Excluir", command=self._excluir,
+            acoes, text=self.t("botao_excluir"), command=self._excluir,
             fg_color="transparent", hover_color=COR_PERIGO_HOVER, text_color=COR_PERIGO_TEXTO,
             border_color=COR_PERIGO_BORDA, border_width=1,
             corner_radius=10, height=36, font=(FONTE, 13),
@@ -509,8 +659,8 @@ class App(ctk.CTk):
         self._carregar_lista()
 
     def _atualizar_cabecalhos(self):
-        for chave, titulo, _ in COLUNAS:
-            texto = titulo.upper()
+        for chave, texto_key, _ in COLUNAS:
+            texto = self.t(texto_key).upper()
             if chave == self.coluna_ordenacao:
                 texto += " ▲" if self.ordem_crescente else " ▼"
             self.tree.heading(chave, text=texto, anchor="w")
@@ -541,8 +691,8 @@ class App(ctk.CTk):
             id_, tipo, marca, modelo, numero_serie = linha
             self.tree.insert("", "end", iid=str(id_), values=(tipo or "", marca or "", modelo or "", numero_serie or ""))
 
-        self.label_subtitulo.configure(text=f"{total_geral} instrumento(s) cadastrado(s)")
-        self.label_total.configure(text=f"{len(linhas)} de {total_geral} instrumentos")
+        self.label_subtitulo.configure(text=self.t("subtitulo", n=total_geral))
+        self.label_total.configure(text=self.t("rodape", x=len(linhas), y=total_geral))
         self._atualizar_detalhes()
 
     def _atualizar_barra_rolagem(self, primeiro, ultimo):
@@ -565,8 +715,8 @@ class App(ctk.CTk):
             return None
         if len(sel) > 1:
             messagebox.showinfo(
-                "Selecione apenas um item",
-                "Essa ação funciona com um item por vez. Selecione apenas um instrumento na lista.",
+                self.t("msg_selecione_titulo"),
+                self.t("msg_selecione_corpo"),
             )
             return None
         return int(sel[0])
@@ -601,7 +751,7 @@ class App(ctk.CTk):
     def _editar(self):
         id_ = self._id_selecionado()
         if id_ is None:
-            messagebox.showinfo("Nenhum instrumento selecionado", "Selecione um instrumento na lista primeiro.")
+            messagebox.showinfo(self.t("msg_nenhum_titulo"), self.t("msg_nenhum_editar"))
             return
         dados = self._buscar_dados(id_)
         dialog = InstrumentoDialog(self, dados=dados)
@@ -621,21 +771,21 @@ class App(ctk.CTk):
     def _excluir(self):
         ids = self._ids_selecionados()
         if not ids:
-            messagebox.showinfo("Nenhum instrumento selecionado", "Selecione um ou mais instrumentos na lista primeiro.")
+            messagebox.showinfo(self.t("msg_nenhum_titulo"), self.t("msg_nenhum_excluir"))
             return
 
         if len(ids) == 1:
             dados = self._buscar_dados(ids[0])
             rotulo = dados["tipo"] + (f" - {dados['marca']}" if dados.get("marca") else "")
-            pergunta = f"Excluir \"{rotulo}\" do cadastro?"
+            pergunta = self.t("msg_excluir_um", rotulo=rotulo)
         else:
             rotulos = []
             for id_ in ids:
                 dados = self._buscar_dados(id_)
                 rotulos.append(dados["tipo"] + (f" - {dados['marca']}" if dados.get("marca") else ""))
-            pergunta = f"Excluir {len(ids)} itens do cadastro?\n\n" + "\n".join(rotulos)
+            pergunta = self.t("msg_excluir_varios", n=len(ids), lista="\n".join(rotulos))
 
-        if messagebox.askyesno("Confirmar exclusão", pergunta):
+        if messagebox.askyesno(self.t("msg_confirmar_exclusao_titulo"), pergunta):
             fazer_backup(motivo="antes_exclusao")
             self.con.executemany("DELETE FROM instrumentos WHERE id = ?", [(i,) for i in ids])
             self.con.commit()
