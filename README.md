@@ -15,7 +15,19 @@ Os dados ficam num banco SQLite local, no seu computador.
 - Data de inclusão no formato DD/MM/AAAA
 - Interface em **Português** e **English**
 
-## Requisitos
+## Baixar e usar (Windows)
+
+1. Abra a página de [**Releases**](https://github.com/vonhauke/my-chaotic-room/releases/latest) e baixe o arquivo **my chaotic room.exe**.
+2. Dê dois cliques nele. Não precisa instalar nada, nem o Python.
+
+> Na primeira vez, o Windows pode mostrar um aviso azul (SmartScreen), porque o programa não é assinado.
+> Clique em **Mais informações → Executar assim mesmo**.
+
+Cada pessoa começa com o cadastro vazio. Os dados ficam no próprio computador, em `%APPDATA%\my chaotic room`.
+
+## Rodar pelo código-fonte
+
+Se preferir rodar sem o `.exe`, você precisa de:
 
 - Windows
 - Python 3.10+
@@ -37,7 +49,7 @@ Ou dê dois cliques em `Abrir.bat`, que abre o app sem a janela do terminal.
 
 ## Onde ficam os dados
 
-Tudo é guardado na pasta do app e **não vai para o GitHub** (está no `.gitignore`):
+Tudo é guardado no computador de quem usa e **não vai para o GitHub** (está no `.gitignore`). No `.exe`, fica em `%APPDATA%\my chaotic room`; rodando pelo código-fonte, fica ao lado do `app.py`:
 
 | Pasta/arquivo | O que é |
 |---------------|---------|
@@ -53,6 +65,7 @@ Para trocar de computador, copie essa pasta inteira (ou pelo menos `instrumentos
 | Arquivo | Função |
 |---------|--------|
 | `app.py` | Aplicativo completo: interface, banco de dados e backups |
+| `build_exe.py` | Gera o `.exe` em `dist/` |
 | `Abrir.bat` | Atalho para abrir o app sem terminal |
 | `assets_icone/` | Ícone do app (`.ico`, `.icns`, `.png` e os `.svg` de origem) |
 | `maquete_tela_principal.html` / `.png` | Maquete da tela principal, usada como referência de design |

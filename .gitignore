@@ -6,3 +6,6 @@ backups/
 *.lnk
 config.json
 fotos/
+build/
+dist/
+*.spec

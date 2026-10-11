@@ -3,6 +3,7 @@ import json
 import os
 import shutil
 import sqlite3
+import sys
 import tkinter as tk
 import uuid
 import webbrowser
@@ -18,13 +19,21 @@ ctk.set_default_color_theme("dark-blue")
 
 TAMANHO_FOTO_DETALHE = (234, 150)
 
-PASTA_BASE = os.path.dirname(os.path.abspath(__file__))
+# Recursos (ícones) ficam junto do código; no .exe do PyInstaller, na pasta temporária de extração.
+PASTA_RECURSOS = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+# Dados do usuário (banco, fotos, backups, idioma): no .exe ficam em %APPDATA%, porque a pasta
+# temporária some a cada vez que o app fecha. Rodando pelo código-fonte, ficam ao lado do app.py.
+if getattr(sys, "frozen", False):
+    PASTA_BASE = os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"), "my chaotic room")
+    os.makedirs(PASTA_BASE, exist_ok=True)
+else:
+    PASTA_BASE = PASTA_RECURSOS
 DB_PATH = os.path.join(PASTA_BASE, "instrumentos.db")
 BACKUP_DIR = os.path.join(PASTA_BASE, "backups")
 FOTOS_DIR = os.path.join(PASTA_BASE, "fotos")
 MAX_BACKUPS = 20
-ICONE_PATH = os.path.join(PASTA_BASE, "assets_icone", "icone_app_instrumentos", "icone.ico")
-ICONE_PNG_PATH = os.path.join(PASTA_BASE, "assets_icone", "icone_app_instrumentos", "icone_1024.png")
+ICONE_PATH = os.path.join(PASTA_RECURSOS, "assets_icone", "icone_app_instrumentos", "icone.ico")
+ICONE_PNG_PATH = os.path.join(PASTA_RECURSOS, "assets_icone", "icone_app_instrumentos", "icone_1024.png")
 
 TIPOS = [
     "Amplificador", "Baixo", "Banjo", "Bateria", "Cabo", "Caixa de Som",
