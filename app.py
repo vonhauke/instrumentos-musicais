@@ -96,7 +96,7 @@ def conectar():
     return con
 
 
-class InstrumentoDialog(tk.Toplevel):
+class InstrumentoDialog(ctk.CTkToplevel):
     """Janela de cadastro/edição de um instrumento."""
 
     def __init__(self, master, dados=None):
@@ -104,6 +104,7 @@ class InstrumentoDialog(tk.Toplevel):
         self.resultado = None
         self.dados_originais = dados
         self.title("Editar instrumento" if dados else "Novo instrumento")
+        self.configure(fg_color=COR_FUNDO)
         self.resizable(False, False)
         self.transient(master)
         self.grab_set()
@@ -123,59 +124,90 @@ class InstrumentoDialog(tk.Toplevel):
         self.geometry(f"+{max(x, 0)}+{max(y, 0)}")
 
     def _montar_formulario(self):
-        frame = ttk.Frame(self, padding=15)
-        frame.grid(row=0, column=0, sticky="nsew")
+        frame = ctk.CTkFrame(self, fg_color=COR_FUNDO)
+        frame.pack(fill="both", expand=True, padx=24, pady=20)
 
-        linha = 0
+        def rotulo(texto, obrigatorio=False, primeiro=False):
+            ctk.CTkLabel(
+                frame, text=texto + ("*" if obrigatorio else ""),
+                text_color=COR_TEXTO_FRACO, font=(FONTE, 12), anchor="w",
+            ).pack(fill="x", pady=(0 if primeiro else 14, 4))
 
-        def add_entry(label, chave, largura=35):
-            nonlocal linha
-            ttk.Label(frame, text=label).grid(row=linha, column=0, sticky="w", pady=4)
+        def add_entry(label, chave, primeiro=False):
+            rotulo(label, primeiro=primeiro)
             var = tk.StringVar()
-            entry = ttk.Entry(frame, textvariable=var, width=largura)
-            entry.grid(row=linha, column=1, sticky="w", pady=4, padx=(10, 0))
+            entry = ctk.CTkEntry(
+                frame, textvariable=var, width=320, height=36,
+                fg_color=COR_PAINEL, border_color=COR_BORDA, border_width=1,
+                corner_radius=8, text_color=COR_TEXTO, font=(FONTE, 13),
+            )
+            entry.pack(fill="x")
             self.campos[chave] = var
-            linha += 1
             return entry
 
-        ttk.Label(frame, text="Tipo*").grid(row=linha, column=0, sticky="w", pady=4)
+        rotulo("Tipo", obrigatorio=True, primeiro=True)
         var_tipo = tk.StringVar()
-        combo_tipo = ttk.Combobox(frame, textvariable=var_tipo, values=TIPOS, width=32)
-        combo_tipo.grid(row=linha, column=1, sticky="w", pady=4, padx=(10, 0))
+        combo_tipo = ctk.CTkComboBox(
+            frame, values=TIPOS, variable=var_tipo, width=320, height=36,
+            fg_color=COR_PAINEL, border_color=COR_BORDA, border_width=1,
+            corner_radius=8, text_color=COR_TEXTO, font=(FONTE, 13),
+            button_color=COR_GHOST, button_hover_color=COR_GHOST_HOVER,
+            dropdown_fg_color=COR_PAINEL, dropdown_hover_color=COR_GHOST,
+            dropdown_text_color=COR_TEXTO, dropdown_font=(FONTE, 13),
+            command=lambda valor: combo_tipo.configure(values=TIPOS),
+        )
+        combo_tipo.set("")
+        combo_tipo.pack(fill="x")
         combo_tipo.bind("<KeyRelease>", self._filtrar_tipos)
-        combo_tipo.bind("<<ComboboxSelected>>", lambda e: combo_tipo.configure(values=TIPOS))
         self.campos["tipo"] = var_tipo
         self._combo_tipo = combo_tipo
-        linha += 1
 
         add_entry("Marca", "marca")
         add_entry("Modelo", "modelo")
         add_entry("Número de série", "numero_serie")
 
-        ttk.Button(frame, text="Buscar no Google", command=self._buscar_no_google).grid(
-            row=linha, column=1, sticky="w", pady=(0, 8), padx=(10, 0)
-        )
-        linha += 1
+        ctk.CTkButton(
+            frame, text="Buscar no Google", command=self._buscar_no_google,
+            fg_color=COR_GHOST, hover_color=COR_GHOST_HOVER, text_color=COR_TEXTO,
+            corner_radius=8, height=34, font=(FONTE, 13),
+        ).pack(fill="x", pady=(14, 0))
 
-        ttk.Label(frame, text="Foto (arquivo)").grid(row=linha, column=0, sticky="w", pady=4)
-        foto_frame = ttk.Frame(frame)
-        foto_frame.grid(row=linha, column=1, sticky="w", pady=4, padx=(10, 0))
+        rotulo("Foto (arquivo)")
+        foto_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        foto_frame.pack(fill="x")
         var_foto = tk.StringVar()
-        ttk.Entry(foto_frame, textvariable=var_foto, width=26).pack(side="left")
-        ttk.Button(foto_frame, text="Escolher...", command=lambda: self._escolher_foto(var_foto)).pack(side="left", padx=(5, 0))
+        ctk.CTkEntry(
+            foto_frame, textvariable=var_foto, height=36,
+            fg_color=COR_PAINEL, border_color=COR_BORDA, border_width=1,
+            corner_radius=8, text_color=COR_TEXTO, font=(FONTE, 13),
+        ).pack(side="left", fill="x", expand=True, padx=(0, 8))
+        ctk.CTkButton(
+            foto_frame, text="Escolher...", command=lambda: self._escolher_foto(var_foto),
+            fg_color=COR_GHOST, hover_color=COR_GHOST_HOVER, text_color=COR_TEXTO,
+            corner_radius=8, height=36, width=90, font=(FONTE, 13),
+        ).pack(side="left")
         self.campos["foto_path"] = var_foto
-        linha += 1
 
-        ttk.Label(frame, text="Observações").grid(row=linha, column=0, sticky="nw", pady=4)
-        texto_obs = tk.Text(frame, width=35, height=4)
-        texto_obs.grid(row=linha, column=1, sticky="w", pady=4, padx=(10, 0))
-        self.campo_observacoes = texto_obs
-        linha += 1
+        rotulo("Observações")
+        self.campo_observacoes = ctk.CTkTextbox(
+            frame, width=320, height=80,
+            fg_color=COR_PAINEL, border_color=COR_BORDA, border_width=1,
+            corner_radius=8, text_color=COR_TEXTO, font=(FONTE, 13),
+        )
+        self.campo_observacoes.pack(fill="x")
 
-        botoes = ttk.Frame(frame)
-        botoes.grid(row=linha, column=0, columnspan=2, pady=(15, 0), sticky="e")
-        ttk.Button(botoes, text="Cancelar", command=self.destroy).pack(side="right", padx=(5, 0))
-        ttk.Button(botoes, text="Salvar", command=self._salvar).pack(side="right")
+        botoes = ctk.CTkFrame(frame, fg_color="transparent")
+        botoes.pack(fill="x", pady=(20, 0))
+        ctk.CTkButton(
+            botoes, text="Salvar", command=self._salvar,
+            fg_color=COR_OURO, hover_color=COR_OURO_HOVER, text_color=COR_OURO_TEXTO,
+            corner_radius=8, height=38, font=(FONTE, 14, "bold"),
+        ).pack(side="right")
+        ctk.CTkButton(
+            botoes, text="Cancelar", command=self.destroy,
+            fg_color=COR_GHOST, hover_color=COR_GHOST_HOVER, text_color=COR_TEXTO,
+            corner_radius=8, height=38, font=(FONTE, 13),
+        ).pack(side="right", padx=(0, 8))
 
         self._combo_tipo.focus_set()
 
@@ -189,22 +221,21 @@ class InstrumentoDialog(tk.Toplevel):
             valores = [t for t in TIPOS if t.lower().startswith(texto)]
             if not valores:
                 valores = [t for t in TIPOS if texto in t.lower()]
-        self._combo_tipo["values"] = valores
+        self._combo_tipo.configure(values=valores)
         try:
             if valores:
-                self._combo_tipo.tk.call("ttk::combobox::Post", self._combo_tipo)
+                self._combo_tipo._open_dropdown_menu()
             else:
-                self._combo_tipo.tk.call("ttk::combobox::Unpost", self._combo_tipo)
-        except tk.TclError:
+                self._combo_tipo._dropdown_menu.close()
+        except Exception:
             pass
         self._combo_tipo.focus_set()
-        self._combo_tipo.icursor(tk.END)
+        self._combo_tipo._entry.icursor(tk.END)
 
     def _buscar_no_google(self):
         partes = [
             self.campos["marca"].get().strip(),
             self.campos["modelo"].get().strip(),
-            self.campos["tipo"].get().strip(),
         ]
         termo = " ".join(p for p in partes if p)
         if not termo:
@@ -214,7 +245,7 @@ class InstrumentoDialog(tk.Toplevel):
                 parent=self,
             )
             return
-        url = f"https://www.google.com/search?q={quote_plus(termo + ' especificações')}"
+        url = f"https://www.google.com/search?q={quote_plus(termo)}"
         webbrowser.open(url)
 
     def _escolher_foto(self, var_foto):
