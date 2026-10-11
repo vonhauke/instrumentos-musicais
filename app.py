@@ -33,10 +33,11 @@ TIPOS = [
 ]
 
 COLUNAS = [
-    ("tipo", "coluna_tipo", 160),
-    ("marca", "coluna_marca", 140),
-    ("modelo", "coluna_modelo", 140),
-    ("numero_serie", "coluna_serie", 140),
+    ("tipo", "coluna_tipo", 150),
+    ("marca", "coluna_marca", 130),
+    ("modelo", "coluna_modelo", 130),
+    ("numero_serie", "coluna_serie", 120),
+    ("data_inclusao", "coluna_data_inclusao", 120),
 ]
 
 FONTE = "Aktiv Grotesk"
@@ -55,6 +56,7 @@ TEXTOS = {
         "coluna_marca": "Marca",
         "coluna_modelo": "Modelo",
         "coluna_serie": "Nº de série",
+        "coluna_data_inclusao": "Data de inclusão",
         "rodape": "{x} de {y} instrumentos",
         "botao_editar": "Editar",
         "botao_excluir": "Excluir",
@@ -94,6 +96,7 @@ TEXTOS = {
         "coluna_marca": "Brand",
         "coluna_modelo": "Model",
         "coluna_serie": "Serial no.",
+        "coluna_data_inclusao": "Date added",
         "rodape": "{x} of {y} instruments",
         "botao_editar": "Edit",
         "botao_excluir": "Delete",
@@ -203,6 +206,9 @@ def conectar():
             observacoes TEXT
         )
     """)
+    colunas_existentes = {linha[1] for linha in con.execute("PRAGMA table_info(instrumentos)")}
+    if "data_inclusao" not in colunas_existentes:
+        con.execute("ALTER TABLE instrumentos ADD COLUMN data_inclusao TEXT")
     con.commit()
     return con
 
@@ -582,7 +588,11 @@ class App(ctk.CTk):
         grade.columnconfigure(1, weight=1)
         self._labels_detalhe = {}
         self._legendas_detalhe = {}
-        for i, (texto_key, chave) in enumerate([("campo_marca", "marca"), ("campo_modelo", "modelo"), ("coluna_serie", "numero_serie")]):
+        campos_grade = [
+            ("campo_marca", "marca"), ("campo_modelo", "modelo"),
+            ("coluna_serie", "numero_serie"), ("coluna_data_inclusao", "data_inclusao"),
+        ]
+        for i, (texto_key, chave) in enumerate(campos_grade):
             legenda = ctk.CTkLabel(
                 grade, text=self.t(texto_key), text_color=COR_TEXTO_FRACO,
                 font=(FONTE, 13), anchor="w",
@@ -677,19 +687,22 @@ class App(ctk.CTk):
         if termo:
             padrao = f"%{termo}%"
             cur.execute(
-                f"""SELECT id, tipo, marca, modelo, numero_serie FROM instrumentos
+                f"""SELECT id, tipo, marca, modelo, numero_serie, data_inclusao FROM instrumentos
                    WHERE lower(tipo) LIKE ? OR lower(marca) LIKE ? OR lower(modelo) LIKE ?
                    ORDER BY {coluna} {direcao}""",
                 (padrao, padrao, padrao),
             )
         else:
-            cur.execute(f"SELECT id, tipo, marca, modelo, numero_serie FROM instrumentos ORDER BY {coluna} {direcao}")
+            cur.execute(f"SELECT id, tipo, marca, modelo, numero_serie, data_inclusao FROM instrumentos ORDER BY {coluna} {direcao}")
 
         self.tree.delete(*self.tree.get_children())
         linhas = cur.fetchall()
         for linha in linhas:
-            id_, tipo, marca, modelo, numero_serie = linha
-            self.tree.insert("", "end", iid=str(id_), values=(tipo or "", marca or "", modelo or "", numero_serie or ""))
+            id_, tipo, marca, modelo, numero_serie, data_inclusao = linha
+            self.tree.insert(
+                "", "end", iid=str(id_),
+                values=(tipo or "", marca or "", modelo or "", numero_serie or "", data_inclusao or "—"),
+            )
 
         self.label_subtitulo.configure(text=self.t("subtitulo", n=total_geral))
         self.label_total.configure(text=self.t("rodape", x=len(linhas), y=total_geral))
@@ -740,10 +753,10 @@ class App(ctk.CTk):
             dados = dialog.resultado
             self.con.execute(
                 """INSERT INTO instrumentos
-                   (tipo, marca, modelo, numero_serie, foto_path, observacoes)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
+                   (tipo, marca, modelo, numero_serie, foto_path, observacoes, data_inclusao)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
                 (dados["tipo"], dados["marca"], dados["modelo"], dados["numero_serie"],
-                 dados["foto_path"], dados["observacoes"]),
+                 dados["foto_path"], dados["observacoes"], datetime.now().strftime("%Y-%m-%d")),
             )
             self.con.commit()
             self._carregar_lista()
@@ -806,17 +819,19 @@ class App(ctk.CTk):
             tipo=dados.get("tipo", ""), nome=nome,
             marca=dados.get("marca") or "", modelo=dados.get("modelo") or "",
             numero_serie=dados.get("numero_serie") or "", caminho_foto=dados.get("foto_path"),
+            data_inclusao=dados.get("data_inclusao") or "—",
         )
         self.bloco_detalhe.pack(fill="x")
         self.botao_editar_detalhe.configure(state="normal")
         self.botao_excluir_detalhe.configure(state="normal")
 
-    def _preencher_detalhes(self, tipo, nome, marca, modelo, numero_serie, caminho_foto):
+    def _preencher_detalhes(self, tipo, nome, marca, modelo, numero_serie, caminho_foto, data_inclusao=""):
         self.label_tipo_detalhe.configure(text=tipo.upper() if tipo else "")
         self.label_nome_detalhe.configure(text=nome)
         self._labels_detalhe["marca"].configure(text=marca)
         self._labels_detalhe["modelo"].configure(text=modelo)
         self._labels_detalhe["numero_serie"].configure(text=numero_serie)
+        self._labels_detalhe["data_inclusao"].configure(text=data_inclusao)
 
         self._foto_detalhe_caminho = caminho_foto
         if caminho_foto and os.path.isfile(caminho_foto):
